@@ -19,13 +19,13 @@
   ],
   "autoload": {
     "psr-4": {
-      "RepositoryBundle\\": "src/RepositoryBundle"
+      "Bolka\\RepositoryBundle\\": "src/Bolka/RepositoryBundle"
     }
   },
   "extra": {
     "pimcore": {
       "bundles": [
-        "RepositoryBundle\\RepositoryBundle"
+        "Bolka\\RepositoryBundle\\RepositoryBundle"
       ]
     },
     "branch-alias": {
