@@ -1,0 +1,36 @@
+services:
+    # default configuration for services in *this* file
+    _defaults:
+        # automatically injects dependencies in your services
+        autowire: true
+        # automatically registers your services as commands, event subscribers, etc.
+        autoconfigure: true
+        # this means you cannot fetch services directly from the container via $container->get()
+        # if you need to do this, you can override this setting on individual services
+        public: false
+
+    # controllers are imported separately to make sure they're public
+    # and have a tag that allows actions to type-hint services
+    RepositoryBundle\Controller\:
+        resource: '../../Controller'
+        public: true
+        tags: ['controller.service_arguments']
+
+    repository.security.news_voter:
+        class: RepositoryBundle\Security\NewsVoter
+        tags:
+            - { name: security.voter }
+    repository.orm_mapping.pimcore_class_metadata_factory_interface:
+        class: RepositoryBundle\ORM\Mapping\PimcoreClassMetadataFactoryInterface
+
+    repository.repository.default_repository_factory:
+        class: RepositoryBundle\Repository\DefaultRepositoryFactory
+
+    repository.orm.entity_manager:
+        class: RepositoryBundle\ORM\EntityManager
+        arguments: [
+            '@doctrine.dbal.default_connection',
+            '@doctrine.dbal.default_connection.event_manager',
+            '@Pimcore\Model\Factory',
+            '@repository.orm_mapping.pimcore_class_metadata_factory_interface',
+            '@repository.repository.default_repository_factory']

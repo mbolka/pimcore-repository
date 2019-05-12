@@ -1,0 +1,35 @@
+{
+  "name": "mbolka/pimcore-repository",
+  "type": "pimcore-bundle",
+  "license": "GPL-3.0-or-later",
+  "description": "",
+  "keywords": [
+    "pimcore",
+    "pimcore-plugin",
+    "repository"
+  ],
+  "homepage": "",
+  "authors": [
+    {
+      "name": "Michal Bolka",
+      "email": "michal.bolka@gmail.com",
+      "homepage": "",
+      "role": "Developer"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "RepositoryBundle\\": "src/RepositoryBundle"
+    }
+  },
+  "extra": {
+    "pimcore": {
+      "bundles": [
+        "RepositoryBundle\\RepositoryBundle"
+      ]
+    },
+    "branch-alias": {
+      "dev-master": "0.1-dev"
+    }
+  }
+}
