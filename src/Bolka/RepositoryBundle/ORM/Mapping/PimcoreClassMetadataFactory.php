@@ -53,8 +53,8 @@ class PimcoreClassMetadataFactory implements ClassMetadataFactoryInterface
         if (!array_key_exists($className, $this->metadataClasses)) {
             $definition = ClassDefinition::getById($pimcoreClass::classId());
             $metadata = new ClassMetadata($definition);
-            if (array_key_exists($className, $this->customRepositoryClasses)) {
-                $metadata->setCustomRepositoryName($this->customRepositoryClasses[$className]);
+            if (array_key_exists($pimcoreClass, $this->customRepositoryClasses)) {
+                $metadata->setCustomRepositoryName($this->customRepositoryClasses[$pimcoreClass]);
             }
             $this->metadataClasses[$className] = $metadata;
         }
