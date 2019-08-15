@@ -33,7 +33,7 @@ class ClassMetadata implements ClassMetadataInterface
         $identifier = ['o_id'],
         $repositoryClassName = null
     ) {
-        $this->name = $namespace . '\\' . $definition->getName();
+        $this->name = $namespace . '\\' . ucfirst($definition->getName());
         $this->namespace = $namespace;
         $this->identifier = $identifier;
         $this->tableName = 'object_' . $definition->getId();
