@@ -49,4 +49,14 @@ interface ClassMetadataInterface
      * @return ClassDefinition
      */
     public function getDefinition();
+
+    /**
+     * @return string[]
+     */
+    public function getRelatedClasses();
+
+    /**
+     * @return bool
+     */
+    public function hasRelations();
 }

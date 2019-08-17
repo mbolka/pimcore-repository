@@ -9,7 +9,9 @@ namespace Bolka\RepositoryBundle\ORM;
 
 use Doctrine\DBAL\ConnectionException;
 use Doctrine\ORM\ORMInvalidArgumentException;
+use Doctrine\ORM\Internal;
 use InvalidArgumentException;
+use Pimcore\Model\DataObject;
 use Pimcore\Model\DataObject\AbstractObject;
 use Pimcore\Model\DataObject\Concrete;
 use Pimcore\Model\FactoryInterface;
@@ -269,20 +271,25 @@ class UnitOfWork
             return;
         }
 
-
+        $commitOrder = $this->getCommitOrder();
         $conn = $this->em->getConnection();
         $conn->beginTransaction();
         try {
-            foreach ($this->entityInsertions as $hash => $entityInsertion) {
-                $this->executeSave($entityInsertion);
+            if ($this->entityInsertions) {
+                foreach ($commitOrder as $classMetadata) {
+                    $this->executeInserts($classMetadata);
+                }
             }
-            foreach ($this->entityUpdates as $hash => $entityUpdate) {
-                $this->executeSave($entityUpdate);
+            if ($this->entityUpdates) {
+                foreach ($commitOrder as $classMetadata) {
+                    $this->executeUpdates($classMetadata);
+                }
             }
-            foreach ($this->entityDeletions as $hash => $entityDeletion) {
-                $this->executeDelete($entityDeletion);
+            if ($this->entityDeletions) {
+                for ($count = count($commitOrder), $i = $count - 1; $i >= 0 && $this->entityDeletions; --$i) {
+                    $this->executeDeletions($commitOrder[$i]);
+                }
             }
-
         } catch (\Throwable $e) {
             $this->em->close();
             $conn->rollBack();
@@ -295,6 +302,44 @@ class UnitOfWork
         $this->postCommitCleanup();
     }
 
+    /**
+     * @param string $className
+     * @throws \Exception
+     */
+    private function executeInserts(ClassMetadataInterface $classMetadata)
+    {
+        foreach ($this->entityInsertions as $hash => $entityInsertion) {
+            if ($entityInsertion instanceof $classMetadata->name) {
+                $this->executeSave($entityInsertion);
+            }
+        }
+    }
+
+    /**
+     * @param string $className
+     * @throws \Exception
+     */
+    private function executeUpdates(ClassMetadataInterface $classMetadata)
+    {
+        foreach ($this->entityUpdates as $hash => $entityUpdate) {
+            if ($entityUpdate instanceof $classMetadata->name) {
+                $this->executeSave($entityUpdate);
+            }
+        }
+    }
+
+    /**
+     * @param string $className
+     * @throws \Exception
+     */
+    private function executeDeleteions(ClassMetadataInterface $classMetadata)
+    {
+        foreach ($this->entityDeletions as $hash => $entityDeletion) {
+            if ($entityDeletion instanceof $classMetadata->name) {
+                $this->executeDelete($entityDeletion);
+            }
+        }
+    }
 
     /**
      * Cleans after commit
@@ -611,5 +656,87 @@ class UnitOfWork
     {
         $oid = spl_object_hash($entity);
         $this->entityUpdates[$oid] = $entity;
+    }
+
+    /**
+     * Gets the CommitOrderCalculator used by the UnitOfWork to order commits.
+     *
+     * @return \Doctrine\ORM\Internal\CommitOrderCalculator
+     */
+    public function getCommitOrderCalculator()
+    {
+        return new Internal\CommitOrderCalculator();
+    }
+
+    /**
+     * Gets the commit order.
+     *
+     * @param array|null $entityChangeSet
+     *
+     * @return array
+     */
+    private function getCommitOrder(array $entityChangeSet = null)
+    {
+        if ($entityChangeSet === null) {
+            $entityChangeSet = array_merge($this->entityInsertions, $this->entityUpdates, $this->entityDeletions);
+        }
+        $commitedClasses = $this->getCommitedClasses($entityChangeSet);
+
+        $calc = $this->getCommitOrderCalculator();
+
+        // See if there are any new classes in the changeset, that are not in the
+        // commit order graph yet (don't have a node).
+        // We have to inspect changeSet to be able to correctly build dependencies.
+        $newNodes = [];
+        /** @var Concrete $entity */
+        foreach ($entityChangeSet as $entity) {
+            $class = $this->em->getClassMetadata(get_class($entity));
+
+            if (!$calc->hasNode($class->name)) {
+                $calc->addNode($class->name, $class);
+            }
+
+            if (!$class->hasRelations()) {
+                continue;
+            }
+            $relatedClasses = $class->getRelatedClasses();
+
+            /**
+             * If class has relations but no classes were explicitly defined
+             * we have to assume every commited class can be related
+             */
+            if (empty($relatedClasses)) {
+                $relatedClasses = $commitedClasses;
+            } else {
+                $relatedClasses = array_intersect($relatedClasses, $commitedClasses);
+            }
+            foreach ($relatedClasses as $relatedClass) {
+                $targetClass = $this->em->getClassMetadata($relatedClass);
+                if (!$calc->hasNode($targetClass->name)) {
+                    $calc->addNode($targetClass->name, $targetClass);
+                    $newNodes[] = $targetClass;
+                }
+                $calc->addDependency($targetClass->name, $class->name, 1);
+            }
+            $newNodes[] = $class;
+        }
+
+        return $calc->sort();
+    }
+
+    /**
+     * @param array $entityChangeSet
+     * @return array
+     */
+    private function getCommitedClasses(array $entitySet)
+    {
+        return array_unique(
+            array_map(
+                function (Concrete $entity) {
+                    return get_class($entity);
+                },
+                $entitySet
+            )
+        );
     }
 }
