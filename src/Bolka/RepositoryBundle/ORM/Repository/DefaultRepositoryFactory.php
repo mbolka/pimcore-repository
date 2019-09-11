@@ -37,7 +37,7 @@ class DefaultRepositoryFactory implements RepositoryFactoryInterface
         if (!$reflection->isSubclassOf(Concrete::class)) {
             throw new \InvalidArgumentException('Pimcore Entity Manager supports only Pimcore Objects');
         }
-        $repositoryHash = $entityManager->getClassMetadata($pimcoreClass)->getName() . spl_object_hash($entityManager);
+        $repositoryHash = $entityManager->getClassMetadata($pimcoreClass)->getName();
         if (isset($this->repositoryList[$repositoryHash])) {
             return $this->repositoryList[$repositoryHash];
         }
