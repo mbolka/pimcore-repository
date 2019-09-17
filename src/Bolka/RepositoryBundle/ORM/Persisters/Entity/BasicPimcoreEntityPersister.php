@@ -266,7 +266,8 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
             foreach ($criteria as $criterion) {
                 $list->addConditionParam(
                     $criterion['condition'],
-                    array_key_exists('variable', $criterion) ? $criterion['variable'] : null
+                    array_key_exists('variable', $criterion) ? $criterion['variable'] : null,
+                    $criterion['concatenator']
                 );
             }
         }
@@ -560,18 +561,25 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
                 if (is_array($criterion)) {
                     if (array_key_exists('condition', $criterion)) {
                         if (is_string($criterion['condition'])) {
-                            $normalizedCriterion['condition'] = $criterion['condition'];
+                            $normalizedCriterion['condition'] = $criterion['condition'] . ' = ?';
 
                             if (array_key_exists('variable', $criterion)) {
                                 $normalizedCriterion['variable'] = $criterion['variable'];
                             }
                         }
                     } else {
-                        $normalizedCriterion['condition'] = $criterion;
+                        $normalizedCriterion['condition'] = $criterion . ' = ?';
+
+                    }
+                    if (array_key_exists('concatenator', $criterion)) {
+                        $normalizedCriterion['concatenator'] = $criterion['concatenator'];
+                    } else {
+                        $normalizedCriterion['concatenator'] = 'AND';
                     }
                 } else {
                     $normalizedCriterion['condition'] = $key . ' = ?';
-                    $normalizedCriterion['variable'] = [$criterion];
+                    $normalizedCriterion['variable'] = $criterion;
+                    $normalizedCriterion['concatenator'] = 'AND';
                 }
 
                 if (count($normalizedCriterion) > 0) {
