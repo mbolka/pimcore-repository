@@ -321,7 +321,7 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
      * @return bool
      * @throws DBALException
      */
-    public function exists(Concrete $entity, Criteria $extraConditions = null)
+    public function exists(Concrete $entity)
     {
         $criteria = $this->class->getIdentifierValues($entity);
         $params = [];
@@ -331,15 +331,8 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
         $params[] = reset($criteria);
         $key = key($criteria);
         $sql = 'SELECT 1 '
-            . ' FROM ' . $this->class->name
-            . ' WHERE ' . $key . ' =?1';
-
-        if (null !== $extraConditions) {
-            $sql                                 .= ' AND ' . $this->getSelectConditionCriteriaSQL($extraConditions);
-            list($criteriaParams) = $this->expandCriteriaParameters($extraConditions);
-
-            $params = array_merge($params, $criteriaParams);
-        }
+            . ' FROM objects '
+            . ' WHERE ' . $key . ' =?';
 
         return (bool) $this->connection->fetchColumn($sql, $params, 0);
     }

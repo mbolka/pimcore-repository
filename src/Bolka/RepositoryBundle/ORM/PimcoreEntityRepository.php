@@ -100,7 +100,7 @@ class PimcoreEntityRepository implements PimcoreEntityRepositoryInterface
         $objects = $persister->loadAll($criteria, $orderBy, $limit, $offset);
         foreach ($objects as $object) {
             $this->getEntityManager()
-                ->registerManaged($object, $this->getClassMetadata()->getIdentifierFieldNames());
+                ->registerManaged($object, $this->getClassMetadata()->getIdentifierValues($object));
         }
         return $objects;
     }
@@ -121,7 +121,7 @@ class PimcoreEntityRepository implements PimcoreEntityRepositoryInterface
         $object = $persister->load($criteria, 1, $orderBy);
         if ($object !== null) {
             $this->getEntityManager()
-                ->registerManaged($object, $this->getClassMetadata()->getIdentifierFieldNames());
+                ->registerManaged($object, $this->getClassMetadata()->getIdentifierValues($object));
         }
         return $object;
     }
@@ -148,8 +148,16 @@ class PimcoreEntityRepository implements PimcoreEntityRepositoryInterface
     public function matching(\Doctrine\Common\Collections\Criteria $criteria)
     {
         $persister = $this->em->getUnitOfWork()->getEntityPersister($this->entityName);
+        $collection = new LazyCriteriaCollection(
+            $persister,
+            $criteria,
+            function ($element) {
+                $this->getEntityManager()
+                    ->registerManaged($element, $this->getClassMetadata()->getIdentifierValues($element));
+            }
+        );
 
-        return new LazyCriteriaCollection($persister, $criteria);
+        return $collection;
     }
 
     /**

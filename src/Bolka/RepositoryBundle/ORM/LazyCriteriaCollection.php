@@ -54,13 +54,19 @@ class LazyCriteriaCollection extends AbstractLazyCollection implements Selectabl
     private $count;
 
     /**
+     * @var callable
+     */
+    private $clousure;
+
+    /**
      * @param PimcoreEntityPersiterInterface $entityPersister
      * @param Criteria        $criteria
      */
-    public function __construct(PimcoreEntityPersiterInterface $entityPersister, Criteria $criteria)
+    public function __construct(PimcoreEntityPersiterInterface $entityPersister, Criteria $criteria, callable $clousure)
     {
         $this->entityPersister = $entityPersister;
         $this->criteria        = $criteria;
+        $this->clousure        = $clousure;
     }
 
     /**
@@ -128,6 +134,11 @@ class LazyCriteriaCollection extends AbstractLazyCollection implements Selectabl
     protected function doInitialize()
     {
         $elements         = $this->entityPersister->loadCriteria($this->criteria);
+        if ($this->clousure) {
+            foreach ($elements as $element) {
+                $this->clousure->__invoke($element);
+            }
+        }
         $this->collection = new ArrayCollection($elements);
     }
 }

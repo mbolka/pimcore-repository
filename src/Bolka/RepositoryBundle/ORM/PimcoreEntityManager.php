@@ -14,6 +14,7 @@ use Pimcore\Db\Connection;
 use Doctrine\ORM\ORMException;
 use Doctrine\ORM\ORMInvalidArgumentException;
 use Doctrine\ORM\Repository\RepositoryFactory;
+use Pimcore\Model\DataObject\AbstractObject;
 use Pimcore\Model\FactoryInterface;
 use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataFactoryInterface;
 use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataInterface;
@@ -174,7 +175,7 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
      */
     public function remove($entity)
     {
-        if (!is_object($entity)) {
+        if (!is_object($entity) || !$entity instanceof AbstractObject) {
             throw ORMInvalidArgumentException::invalidObject('EntityManager#remove()', $entity);
         }
 

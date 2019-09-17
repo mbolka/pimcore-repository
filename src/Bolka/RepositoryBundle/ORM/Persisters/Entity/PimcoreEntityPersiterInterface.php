@@ -143,7 +143,7 @@ interface PimcoreEntityPersiterInterface
      * @param Criteria|null $extraConditions
      * @return boolean TRUE if the entity exists in the database, FALSE otherwise.
      */
-    public function exists(Concrete $entity, Criteria $extraConditions = null);
+    public function exists(Concrete $entity);
 
     /**
      * @param string $path
