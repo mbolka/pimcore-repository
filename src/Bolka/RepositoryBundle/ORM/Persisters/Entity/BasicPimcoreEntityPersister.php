@@ -67,12 +67,9 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
      * @var FactoryInterface
      */
     private $modelFactory;
-
-    /** @var AbstractListing */
-    private $listing;
+    
     /** @var Connection */
     private $connection;
-
 
     /**
      * BasicPimcoreEntityPersister constructor.
@@ -519,12 +516,9 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
      */
     protected function getListing()
     {
-        if (!$this->listing) {
-            $className = $this->getFullQualifiedClassName();
-            $listClass = $className . '\\Listing';
-            $this->listing = $this->modelFactory->build($listClass);
-        }
-        return $this->listing;
+        $className = $this->getFullQualifiedClassName();
+        $listClass = $className . '\\Listing';
+        return $this->modelFactory->build($listClass);
     }
 
     /**
