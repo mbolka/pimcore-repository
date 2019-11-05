@@ -4,13 +4,16 @@
  * @date        12/05/2019
  * @author      Michał Bolka <michal.bolka@gmail.com>
  */
+
 namespace Bolka\RepositoryBundle\ORM\Repository;
 
-use Pimcore\Model\DataObject\Concrete;
 use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadata;
-use Bolka\RepositoryBundle\ORM\PimcoreEntityManagerInterface;
+use Bolka\RepositoryBundle\ORM\PimcoreElementManagerInterface;
+use Bolka\RepositoryBundle\ORM\PimcoreElementRepository;
+use Bolka\RepositoryBundle\ORM\PimcoreElementRepositoryInterface;
 use Bolka\RepositoryBundle\ORM\PimcoreEntityRepository;
-use Bolka\RepositoryBundle\ORM\PimcoreEntityRepositoryInterface;
+use Pimcore\Model\DataObject\Concrete;
+use Pimcore\Model\Element\AbstractElement;
 
 /**
  * Class DefaultRepositoryFactory
@@ -26,43 +29,64 @@ class DefaultRepositoryFactory implements RepositoryFactoryInterface
     private $repositoryList = [];
 
     /**
-     * @param PimcoreEntityManagerInterface $entityManager
-     * @param                               $pimcoreClass
+     * @param PimcoreElementManagerInterface $entityManager
+     * @param                                $pimcoreClass
      * @return PimcoreEntityRepository|mixed
      * @throws \ReflectionException
      */
-    public function getRepository(PimcoreEntityManagerInterface $entityManager, $pimcoreClass)
+    public function getRepository(PimcoreElementManagerInterface $entityManager, $pimcoreClass)
     {
         $reflection = new \ReflectionClass($pimcoreClass);
-        if (!$reflection->isSubclassOf(Concrete::class)) {
-            throw new \InvalidArgumentException('Pimcore Entity Manager supports only Pimcore Objects');
+        if ($reflection->isSubclassOf(Concrete::class)) {
+            $repositoryClassName = PimcoreEntityRepository::class;
+        } elseif ($reflection->isSubclassOf(AbstractElement::class)) {
+            $repositoryClassName = PimcoreElementRepository::class;
+        } else {
+            throw new \RuntimeException(
+                sprintf(
+                    "Pimcore Entity Manager supports only Pimcore Objects, class: %s given",
+                    $pimcoreClass
+                )
+            );
         }
         $repositoryHash = $entityManager->getClassMetadata($pimcoreClass)->getName() . spl_object_hash($entityManager);
         if (isset($this->repositoryList[$repositoryHash])) {
             return $this->repositoryList[$repositoryHash];
         }
-        $this->repositoryList[$repositoryHash] = $this->createRepository($entityManager, $pimcoreClass);
+        $this->repositoryList[$repositoryHash] = $this->createRepository(
+            $entityManager,
+            $repositoryClassName,
+            $pimcoreClass
+        );
         return $this->repositoryList[$repositoryHash];
     }
 
     /**
      * Create a new repository instance for an entity class.
      *
-     * @param PimcoreEntityManagerInterface $entityManager The EntityManager instance.
-     * @param string                        $pimcoreClass The name of the pimcore class.
+     * @param PimcoreElementManagerInterface $entityManager The EntityManager instance.
+     * @param string                         $repositoryClassName
+     * @param string                         $pimcoreClass The name of the pimcore class.
      *
      * @return PimcoreEntityRepository
+     * @throws \ReflectionException
      */
-    private function createRepository(PimcoreEntityManagerInterface $entityManager, $pimcoreClass)
-    {
+    private function createRepository(
+        PimcoreElementManagerInterface $entityManager,
+        string $repositoryClassName,
+        $pimcoreClass
+    ) {
         /* @var $metadata ClassMetadata */
-        $metadata            = $entityManager->getClassMetadata($pimcoreClass);
-        $repositoryClassName = $metadata->customRepositoryClassName
-            ?: $entityManager->getDefaultRepositoryClassName();
+        $metadata = $entityManager->getClassMetadata($pimcoreClass);
+        if ($metadata->customRepositoryClassName) {
+            $repositoryClassName = $metadata->customRepositoryClassName;
+        }
         try {
             $refClass = new \ReflectionClass($repositoryClassName);
-            if (!$refClass->implementsInterface(PimcoreEntityRepositoryInterface::class)) {
-                throw new \InvalidArgumentException('Repository must implements PimcoreEntityRepositoryInterface');
+            if (!$refClass->implementsInterface(PimcoreElementRepositoryInterface::class)) {
+                throw new \InvalidArgumentException(
+                    'Repository must implements PimcoreElementRepositoryInterface'
+                );
             }
         } catch (\ReflectionException $exception) {
             throw new \InvalidArgumentException('Repository does not exists');

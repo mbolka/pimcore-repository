@@ -246,4 +246,12 @@ class ClassMetadata implements ClassMetadataInterface
             }
         }
     }
+
+    /**
+     * @return string
+     */
+    public function getTableName()
+    {
+        return $this->tableName;
+    }
 }

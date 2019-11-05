@@ -7,15 +7,19 @@
 
 namespace Bolka\RepositoryBundle\ORM\Mapping;
 
+use Pimcore\Model\Asset;
 use Pimcore\Model\DataObject\ClassDefinition;
+use Pimcore\Model\DataObject\Concrete;
+use Pimcore\Model\Document;
+use Pimcore\Model\Element\AbstractElement;
 
 /**
  * Class PimcoreClassMetadataFactory
  * @package Bolka\RepositoryBundle\ORM\Mapping
  */
-class PimcoreClassMetadataFactory implements ClassMetadataFactoryInterface
+class PimcoreElementMetadataFactory implements PimcoreElementMetadataFactoryInterface
 {
-    /** @var ClassMetadata[] */
+    /** @var ElementMetadataInterface[] */
     private $metadataClasses = [];
 
     /** @var string[] */
@@ -29,11 +33,12 @@ class PimcoreClassMetadataFactory implements ClassMetadataFactoryInterface
     {
         $this->customRepositoryClasses[$className] = $repositoryClass;
     }
+
     /**
      * Forces the factory to load the metadata of all classes known to the underlying
      * mapping driver.
      *
-     * @return ClassMetadata[] The ClassMetadata instances of all mapped classes.
+     * @return ElementMetadataInterface[] The metadata instances of all mapped elements.
      */
     public function getAllMetadata()
     {
@@ -49,16 +54,26 @@ class PimcoreClassMetadataFactory implements ClassMetadataFactoryInterface
      */
     public function getMetadataFor($pimcoreClass)
     {
-        $className = end(explode('\\', $pimcoreClass));
-        if (!array_key_exists($className, $this->metadataClasses)) {
+        $reflection = new \ReflectionClass($pimcoreClass);
+        if ($this->hasMetadataFor($pimcoreClass)) {
+            return $this->metadataClasses[$pimcoreClass];
+        }
+        if ($reflection->isSubclassOf(Concrete::class)) {
             $definition = ClassDefinition::getById($pimcoreClass::classId());
-            $metadata = new ClassMetadata($definition);
+            $metadata   = new ClassMetadata($definition);
             if (array_key_exists($pimcoreClass, $this->customRepositoryClasses)) {
                 $metadata->setCustomRepositoryName($this->customRepositoryClasses[$pimcoreClass]);
             }
-            $this->metadataClasses[$className] = $metadata;
+            $this->metadataClasses[$pimcoreClass] = $metadata;
+        } elseif ($reflection->isSubclassOf(AbstractElement::class)) {
+            $tableName = $this->getTableName($reflection);
+            $metadata = new ElementMetadata($pimcoreClass, ['id'], $tableName);
+            if (array_key_exists($pimcoreClass, $this->customRepositoryClasses)) {
+                $metadata->setCustomRepositoryName($this->customRepositoryClasses[$pimcoreClass]);
+            }
+            $this->metadataClasses[$pimcoreClass] = $metadata;
         }
-        return $this->metadataClasses[$className];
+        return $this->metadataClasses[$pimcoreClass];
     }
 
     /**
@@ -95,5 +110,21 @@ class PimcoreClassMetadataFactory implements ClassMetadataFactoryInterface
     public function isTransient($className)
     {
         return false;
+    }
+
+    /**
+     * @param \ReflectionClass $reflectionClass
+     * @return string
+     */
+    private function getTableName(\ReflectionClass $reflectionClass)
+    {
+        switch (true) {
+            case $reflectionClass->getName() == Document::class || $reflectionClass->isSubclassOf(Document::class):
+                return 'documents';
+            case $reflectionClass->getName() == Asset::class || $reflectionClass->isSubclassOf(Asset::class):
+                return 'assets';
+            default:
+                throw new \RuntimeException(sprintf('Repository does not support class: %s', $reflectionClass));
+        }
     }
 }

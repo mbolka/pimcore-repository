@@ -24,7 +24,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Bolka\RepositoryBundle\Common\Collections\Criteria;
 use Doctrine\Common\Collections\Selectable;
 use Pimcore\Model\DataObject\Concrete;
-use Bolka\RepositoryBundle\ORM\Persisters\Entity\PimcoreEntityPersiterInterface;
+use Bolka\RepositoryBundle\ORM\Persisters\Entity\PimcoreEntityPersisterInterface;
 
 /**
  * A lazy collection that allow a fast count when using criteria object
@@ -39,7 +39,7 @@ use Bolka\RepositoryBundle\ORM\Persisters\Entity\PimcoreEntityPersiterInterface;
 class LazyCriteriaCollection extends AbstractLazyCollection implements Selectable
 {
     /**
-     * @var PimcoreEntityPersiterInterface
+     * @var PimcoreEntityPersisterInterface
      */
     protected $entityPersister;
 
@@ -54,10 +54,22 @@ class LazyCriteriaCollection extends AbstractLazyCollection implements Selectabl
     private $count;
 
     /**
+<<<<<<< Updated upstream
      * @param PimcoreEntityPersiterInterface $entityPersister
      * @param Criteria        $criteria
      */
     public function __construct(PimcoreEntityPersiterInterface $entityPersister, Criteria $criteria)
+=======
+     * @var callable
+     */
+    private $clousure;
+
+    /**
+     * @param PimcoreEntityPersisterInterface $entityPersister
+     * @param Criteria                        $criteria
+     */
+    public function __construct(PimcoreEntityPersisterInterface $entityPersister, Criteria $criteria, callable $clousure)
+>>>>>>> Stashed changes
     {
         $this->entityPersister = $entityPersister;
         $this->criteria        = $criteria;

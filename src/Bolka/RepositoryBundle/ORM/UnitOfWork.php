@@ -7,17 +7,17 @@
 
 namespace Bolka\RepositoryBundle\ORM;
 
-use Doctrine\DBAL\ConnectionException;
-use Doctrine\ORM\ORMInvalidArgumentException;
-use Doctrine\ORM\Internal;
-use InvalidArgumentException;
-use Pimcore\Model\DataObject;
-use Pimcore\Model\DataObject\AbstractObject;
-use Pimcore\Model\DataObject\Concrete;
-use Pimcore\Model\FactoryInterface;
 use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataInterface;
-use Bolka\RepositoryBundle\ORM\Persisters\Entity\PimcoreEntityPersiterInterface;
-use Bolka\RepositoryBundle\ORM\Persisters\Entity\EntityPersisterFactory;
+use Bolka\RepositoryBundle\ORM\Mapping\ElementMetadataInterface;
+use Bolka\RepositoryBundle\ORM\Persisters\ElementPersisterFactory;
+use Bolka\RepositoryBundle\ORM\Persisters\PimcoreElementPersisterInterface;
+use Doctrine\DBAL\ConnectionException;
+use Doctrine\ORM\Internal;
+use Doctrine\ORM\ORMInvalidArgumentException;
+use InvalidArgumentException;
+use Pimcore\Model\DataObject\Concrete;
+use Pimcore\Model\Element\AbstractElement;
+use Pimcore\Model\FactoryInterface;
 use Symfony\Component\Intl\Exception\NotImplementedException;
 use UnexpectedValueException;
 
@@ -51,9 +51,9 @@ class UnitOfWork
      */
     const STATE_REMOVED = 4;
 
-    /** @var PimcoreEntityManagerInterface */
+    /** @var PimcoreElementManagerInterface */
     private $em;
-    /** @var PimcoreEntityPersiterInterface[] */
+    /** @var PimcoreElementPersisterInterface[] */
     private $persisters = [];
     /** @var array */
     private $identityMap = [];
@@ -71,22 +71,22 @@ class UnitOfWork
     private $modelFactory;
     /** @var array */
     private $originalEntityData = [];
-    /** @var EntityPersisterFactory */
+    /** @var ElementPersisterFactory */
     private $entityPersisterFactory;
 
     /**
      * UnitOfWork constructor.
-     * @param PimcoreEntityManagerInterface $entityManager
-     * @param FactoryInterface              $factory
-     * @param EntityPersisterFactory        $entityPersisterFactory
+     * @param PimcoreElementManagerInterface $entityManager
+     * @param FactoryInterface               $factory
+     * @param ElementPersisterFactory        $entityPersisterFactory
      */
     public function __construct(
-        PimcoreEntityManagerInterface $entityManager,
+        PimcoreElementManagerInterface $entityManager,
         FactoryInterface $factory,
-        EntityPersisterFactory $entityPersisterFactory
+        ElementPersisterFactory $entityPersisterFactory
     ) {
-        $this->em = $entityManager;
-        $this->modelFactory = $factory;
+        $this->em                     = $entityManager;
+        $this->modelFactory           = $factory;
         $this->entityPersisterFactory = $entityPersisterFactory;
     }
 
@@ -95,7 +95,7 @@ class UnitOfWork
      *
      * @param string $entityName The name of the Entity.
      *
-     * @return PimcoreEntityPersiterInterface
+     * @return PimcoreElem  entPersisterInterface
      */
     public function getEntityPersister($entityName)
     {
@@ -103,7 +103,7 @@ class UnitOfWork
             return $this->persisters[$entityName];
         }
 
-        $class = $this->em->getClassMetadata($entityName);
+        $class     = $this->em->getClassMetadata($entityName);
         $persister = $this->entityPersisterFactory->getEntityPersiter($this->em, $class, $this->modelFactory);
 
         $this->persisters[$entityName] = $persister;
@@ -118,7 +118,7 @@ class UnitOfWork
      */
     public function tryGetById(array $sortedId, $rootEntityName)
     {
-        $idHash = implode(' ', (array) $sortedId);
+        $idHash = implode(' ', (array)$sortedId);
 
         if ($this->identityMap[$rootEntityName][$idHash]) {
             return $this->identityMap[$rootEntityName][$idHash];
@@ -128,9 +128,9 @@ class UnitOfWork
     }
 
     /**
-     * @param object $entity
+     * @param AbstractElement $entity
      */
-    public function persist($entity)
+    public function persist(AbstractElement $entity)
     {
         $oid = spl_object_hash($entity);
 
@@ -143,7 +143,6 @@ class UnitOfWork
         switch ($entityState) {
             case self::STATE_MANAGED:
                 $this->persistExisted($entity);
-                //TODO Implement dirty check
                 break;
 
             case self::STATE_NEW:
@@ -218,7 +217,7 @@ class UnitOfWork
      */
     private function clearIdentityMapForEntityName($entityName)
     {
-        if (! isset($this->identityMap[$entityName])) {
+        if (!isset($this->identityMap[$entityName])) {
             return;
         }
 
@@ -243,14 +242,14 @@ class UnitOfWork
     /**
      * Executes a refresh operation on an entity.
      *
-     * @param object $entity  The entity to refresh.*
+     * @param object $entity The entity to refresh.*
      * @return void
      *
      * @throws ORMInvalidArgumentException If the entity is not MANAGED.
      */
     public function refresh($entity)
     {
-        $class = $this->em->getClassMetadata('Pimcore\\Model\\DataObject\\' . $entity->getClassName());
+        $class = $this->em->getClassMetadata(get_class($entity));
 
         if ($this->getEntityState($entity) !== self::STATE_MANAGED) {
             throw ORMInvalidArgumentException::entityNotManaged($entity);
@@ -272,7 +271,7 @@ class UnitOfWork
         }
 
         $commitOrder = $this->getCommitOrder();
-        $conn = $this->em->getConnection();
+        $conn        = $this->em->getConnection();
         $conn->beginTransaction();
         try {
             if ($this->entityInsertions) {
@@ -298,65 +297,73 @@ class UnitOfWork
         }
         $conn->commit();
 
-
         $this->postCommitCleanup();
     }
 
     /**
-     * @param string $className
-     * @throws \Exception
+     * @param ElementMetadataInterface $classMetadata
      */
-    private function executeInserts(ClassMetadataInterface $classMetadata)
+    private function executeInserts(ElementMetadataInterface $classMetadata)
     {
-        foreach ($this->entityInsertions as $hash => $entityInsertion) {
-            if ($entityInsertion instanceof $classMetadata->name) {
-                $this->executeSave($entityInsertion);
+        $className  = $classMetadata->name;
+        $persister  = $this->getEntityPersister($className);
+        $insertions = [];
+        foreach ($this->entityInsertions as $hash => $entity) {
+            if (!$entity instanceof $className) {
+                continue;
             }
+            $insertions[$hash] = $entity;
+            $persister->addInsert($entity);
+            unset($this->entityInsertions[$hash]);
+        }
+        $persister->executeInserts();
+    }
+
+    /**
+     * @param ElementMetadataInterface $classMetadata
+     */
+    private function executeUpdates(ElementMetadataInterface $classMetadata)
+    {
+        $className = $classMetadata->name;
+        $persister = $this->getEntityPersister($className);
+        foreach ($this->entityUpdates as $hash => $entity) {
+            if (!$entity instanceof $className) {
+                continue;
+            }
+            $persister->update($entity);
+            unset($this->entityUpdates[$hash]);
         }
     }
 
     /**
-     * @param string $className
-     * @throws \Exception
+     * @param ElementMetadataInterface $classMetadata
      */
-    private function executeUpdates(ClassMetadataInterface $classMetadata)
+    private function executeDeletions(ElementMetadataInterface $classMetadata)
     {
-        foreach ($this->entityUpdates as $hash => $entityUpdate) {
-            if ($entityUpdate instanceof $classMetadata->name) {
-                $this->executeSave($entityUpdate);
-            }
-        }
-    }
+        $className = $classMetadata->name;
+        $persister = $this->getEntityPersister($className);
 
-    /**
-     * @param string $className
-     * @throws \Exception
-     */
-    private function executeDeleteions(ClassMetadataInterface $classMetadata)
-    {
-        foreach ($this->entityDeletions as $hash => $entityDeletion) {
-            if ($entityDeletion instanceof $classMetadata->name) {
-                $this->executeDelete($entityDeletion);
+        foreach ($this->entityDeletions as $hash => $entity) {
+            if (!$entity instanceof $classMetadata->name) {
+                continue;
             }
+            $persister->delete($entity);
+            unset(
+                $this->entityDeletions[$hash],
+                $this->entityIdentifiers[$hash],
+                $this->entityStates[$hash]
+            );
         }
     }
 
     /**
      * Cleans after commit
      */
-    private function postCommitCleanup() : void
+    private function postCommitCleanup(): void
     {
         $this->entityInsertions =
         $this->entityUpdates =
         $this->entityDeletions = [];
-    }
-
-    /**
-     * @param object $obj
-     */
-    public function initializeObject($obj)
-    {
-        throw new NotImplementedException('Method intizlieObject is not implemented');
     }
 
     /**
@@ -380,7 +387,7 @@ class UnitOfWork
             return false;
         }
 
-        $classMetadata = $this->em->getClassMetadata('Pimcore\\Model\\DataObject\\' . $entity->getClassName());
+        $classMetadata = $this->em->getClassMetadata(get_class($entity));
         $idHash        = implode(' ', $this->entityIdentifiers[$oid]);
 
         return isset($this->identityMap[$classMetadata->getName()][$idHash]);
@@ -419,7 +426,7 @@ class UnitOfWork
         }
 
         /** @var ClassMetadataInterface $class */
-        $class = $this->em->getClassMetadata('Pimcore\\Model\\DataObject\\' . $entity->getClassName());
+        $class = $this->em->getClassMetadata(get_class($entity));
         $id    = $class->getIdentifierValues($entity);
 
         if (!$id) {
@@ -442,7 +449,7 @@ class UnitOfWork
      */
     private function persistNew($entity)
     {
-        $oid    = spl_object_hash($entity);
+        $oid                      = spl_object_hash($entity);
         $this->entityStates[$oid] = self::STATE_MANAGED;
         $this->scheduleForInsert($entity);
     }
@@ -453,7 +460,7 @@ class UnitOfWork
      */
     public function addToIdentityMap($entity)
     {
-        $classMetadata = $this->em->getClassMetadata('Pimcore\\Model\\DataObject\\' . $entity->getClassName());
+        $classMetadata = $this->em->getClassMetadata(get_class($entity));
         $identifier    = $this->entityIdentifiers[spl_object_hash($entity)];
 
         if (empty($identifier) || in_array(null, $identifier, true)) {
@@ -494,7 +501,7 @@ class UnitOfWork
         if (isset($this->entityDeletions[$oid])) {
             throw ORMInvalidArgumentException::scheduleInsertForRemovedEntity($entity);
         }
-        if (isset($this->originalEntityData[$oid]) && ! isset($this->entityInsertions[$oid])) {
+        if (isset($this->originalEntityData[$oid]) && !isset($this->entityInsertions[$oid])) {
             throw ORMInvalidArgumentException::scheduleInsertForManagedEntity($entity);
         }
 
@@ -544,13 +551,13 @@ class UnitOfWork
     }
 
     /**
-     * @param object $entity
+     * @param AbstractElement $entity
      * @return bool
      */
-    public function removeFromIdentityMap($entity)
+    public function removeFromIdentityMap(AbstractElement $entity)
     {
         $oid           = spl_object_hash($entity);
-        $classMetadata = $this->em->getClassMetadata('Pimcore\\Model\\DataObject\\' . $entity->getClassName());
+        $classMetadata = $this->em->getClassMetadata(get_class($entity));
         $idHash        = implode(' ', $this->entityIdentifiers[$oid]);
 
         if ($idHash === '') {
@@ -573,7 +580,7 @@ class UnitOfWork
      * @param object $entity
      * @return void
      */
-    public function detach($entity)
+    public function detach(AbstractElement $entity)
     {
         $oid = spl_object_hash($entity);
 
@@ -595,66 +602,34 @@ class UnitOfWork
             case self::STATE_DETACHED:
             default:
                 return;
-
         }
-    }
-
-    /**
-     * @param $entity
-     * @throws \Exception
-     */
-    private function executeSave($entity)
-    {
-        if (!$entity instanceof AbstractObject) {
-            throw new InvalidArgumentException(
-                sprintf('Argument of class %s is not supported', get_class($entity))
-            );
-        }
-        if ($entity instanceof Concrete && !$entity->isPublished()) {
-            $entity->setOmitMandatoryCheck(true);
-        }
-        $entity->save();
-    }
-
-    /**
-     * @param $entityDeletion
-     * @throws \Exception
-     */
-    private function executeDelete($entityDeletion)
-    {
-        if (!$entityDeletion instanceof AbstractObject) {
-            throw new InvalidArgumentException(
-                sprintf('Argument of class %s is not supported', get_class($entityDeletion))
-            );
-        }
-        $entityDeletion->delete();
     }
 
     /**
      * INTERNAL:
      * Registers an entity as managed.
      *
-     * @param object $entity The entity.
-     * @param array  $id     The identifier values.
+     * @param AbstractElement $entity The entity.
+     * @param array           $id The identifier values.
      *
      * @return void
      */
-    public function registerManaged($entity, array $id)
+    public function registerManaged(AbstractElement $entity, array $id)
     {
         $oid = spl_object_hash($entity);
 
-        $this->entityIdentifiers[$oid]  = $id;
-        $this->entityStates[$oid]       = self::STATE_MANAGED;
+        $this->entityIdentifiers[$oid] = $id;
+        $this->entityStates[$oid]      = self::STATE_MANAGED;
 
         $this->addToIdentityMap($entity);
     }
 
     /**
-     * @param object $entity
+     * @param AbstractElement $entity
      */
-    private function persistExisted($entity)
+    private function persistExisted(AbstractElement $entity)
     {
-        $oid = spl_object_hash($entity);
+        $oid                       = spl_object_hash($entity);
         $this->entityUpdates[$oid] = $entity;
     }
 
@@ -725,14 +700,14 @@ class UnitOfWork
     }
 
     /**
-     * @param array $entityChangeSet
+     * @param array $entitySet
      * @return array
      */
     private function getCommitedClasses(array $entitySet)
     {
         return array_unique(
             array_map(
-                function (Concrete $entity) {
+                function (AbstractElement $entity) {
                     return get_class($entity);
                 },
                 $entitySet

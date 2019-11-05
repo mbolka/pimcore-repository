@@ -1,24 +1,24 @@
 <?php
 /**
- * @category    pimcore-repository
- * @date        11/05/2019
- * @author      Michał Bolka <michal.bolka@gmail.com>
+ * @category    bosch-stuttgart
+ * @date        04/11/2019
+ * @author      Michał Bolka <mbolka@divante.co>
+ * @copyright   Copyright (c) 2019 Divante Ltd. (https://divante.co)
  */
 
-namespace Bolka\RepositoryBundle\ORM\Persisters\Entity;
+namespace Bolka\RepositoryBundle\ORM\Persisters;
 
 use Bolka\RepositoryBundle\Common\Collections\Criteria;
-use Pimcore\Model\DataObject\Concrete;
-use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataInterface;
+use Bolka\RepositoryBundle\ORM\Mapping\ElementMetadataInterface;
 
 /**
- * Interface PimcoreEntityPersiterInterface
- * @package Bolka\RepositoryBundle\Common\Persisters\Entity
+ * Interface PimcoreElementPersisterInterface
+ * @package Bolka\RepositoryBundle\ORM\Persisters
  */
-interface PimcoreEntityPersiterInterface
+interface PimcoreElementPersisterInterface
 {
     /**
-     * @return ClassMetadataInterface
+     * @return ElementMetadataInterface
      */
     public function getClassMetadata();
 
@@ -30,16 +30,6 @@ interface PimcoreEntityPersiterInterface
     public function getInserts();
 
     /**
-     * Adds an entity to the queued insertions.
-     * The entity remains queued until {@link executeInserts} is invoked.
-     *
-     * @param Concrete $entity The entity to queue for insertion.
-     *
-     * @return void
-     */
-    public function addInsert(Concrete $entity);
-
-    /**
      * Executes all queued entity insertions and returns any generated post-insert
      * identifiers that were created as a result of the insertions.
      *
@@ -49,30 +39,6 @@ interface PimcoreEntityPersiterInterface
      *               if the entity class does not use the IDENTITY generation strategy.
      */
     public function executeInserts();
-
-    /**
-     * Updates a managed entity. The entity is updated according to its current changeset
-     * in the running UnitOfWork. If there is no changeset, nothing is updated.
-     *
-     * @param Concrete $entity The entity to update.
-     *
-     * @return void
-     */
-    public function update(Concrete $entity);
-
-    /**
-     * Deletes a managed entity.
-     *
-     * The entity to delete must be managed and have a persistent identifier.
-     * The deletion happens instantaneously.
-     *
-     * Subclasses may override this method to customize the semantics of entity deletion.
-     *
-     * @param Concrete $entity The entity to delete.
-     *
-     * @return bool TRUE if the entity got deleted in the database, FALSE otherwise.
-     */
-    public function delete(Concrete $entity);
 
     /**
      * Count entities (optionally filtered by a criteria)
@@ -113,17 +79,6 @@ interface PimcoreEntityPersiterInterface
     public function loadById(array $identifier, $entity = null);
 
     /**
-     * Refreshes a managed entity.
-     *
-     * @param Concrete $entity The entity to refresh.
-     *                           or NULL if no specific lock mode should be used
-     *                           for refreshing the managed entity.
-     *
-     * @return void
-     */
-    public function refresh(Concrete $entity);
-
-    /**
      * Loads a list of entities by a list of field criteria.
      *
      * @param array      $criteria
@@ -136,20 +91,8 @@ interface PimcoreEntityPersiterInterface
     public function loadAll(array $criteria = [], array $orderBy = null, $limit = null, $offset = null);
 
     /**
-     * Checks whether the given managed entity exists in the database.
-     *
-     * @param Concrete      $entity
-     *
-     * @param Criteria|null $extraConditions
-     * @return boolean TRUE if the entity exists in the database, FALSE otherwise.
-     */
-    public function exists(Concrete $entity, Criteria $extraConditions = null);
-
-    /**
      * @param string $path
      * @return mixed
      */
     public function getByPath(string $path);
-
-    public function loadCriteria(Criteria $criteria);
 }

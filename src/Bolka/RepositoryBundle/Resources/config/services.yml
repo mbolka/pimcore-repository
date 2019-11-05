@@ -9,19 +9,19 @@ services:
         # if you need to do this, you can override this setting on individual services
         public: false
 
-    Bolka\RepositoryBundle\ORM\Mapping\PimcoreClassMetadataFactory:
+    Bolka\RepositoryBundle\ORM\Mapping\PimcoreElementMetadataFactory:
         public: true
     Bolka\RepositoryBundle\ORM\Repository\DefaultRepositoryFactory:
         public: true
-    Bolka\RepositoryBundle\ORM\Persisters\Entity\EntityPersisterFactory:
+    Bolka\RepositoryBundle\ORM\Persisters\ElementPersisterFactory:
         public: true
 
-    Bolka\RepositoryBundle\ORM\PimcoreEntityManager:
+    Bolka\RepositoryBundle\ORM\PimcoreElementManager:
         arguments: [
             '@doctrine.dbal.default_connection',
             '@doctrine.dbal.default_connection.event_manager',
             '@Pimcore\Model\Factory',
-            '@Bolka\RepositoryBundle\ORM\Mapping\PimcoreClassMetadataFactory',
+            '@Bolka\RepositoryBundle\ORM\Mapping\PimcoreElementMetadataFactory',
             '@Bolka\RepositoryBundle\ORM\Repository\DefaultRepositoryFactory',
-            '@Bolka\RepositoryBundle\ORM\Persisters\Entity\EntityPersisterFactory']
+            '@Bolka\RepositoryBundle\ORM\Persisters\ElementPersisterFactory']
         public: true

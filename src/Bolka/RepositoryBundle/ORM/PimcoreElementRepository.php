@@ -1,46 +1,41 @@
 <?php
 /**
- * @category    pimcore-repository
- * @date        11/05/2019
- * @author      Michał Bolka <michal.bolka@gmail.com>
+ * @category    bosch-stuttgart
+ * @date        04/11/2019
+ * @author      Michał Bolka <mbolka@divante.co>
+ * @copyright   Copyright (c) 2019 Divante Ltd. (https://divante.co)
  */
 
 namespace Bolka\RepositoryBundle\ORM;
 
 use Bolka\RepositoryBundle\Common\Collections\Criteria;
-use Doctrine\ORM\ORMException;
 use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataInterface;
-use Symfony\Component\Debug\Exception\UndefinedMethodException;
-use UnexpectedValueException;
+use Bolka\RepositoryBundle\ORM\Mapping\ElementMetadataInterface;
+use Doctrine\ORM\ORMException;
 
 /**
- * Class PimcoreEntityRepository
+ * Class PimcoreElementRepository
  * @package Bolka\RepositoryBundle\ORM
  */
-class PimcoreEntityRepository implements PimcoreEntityRepositoryInterface
+class PimcoreElementRepository implements PimcoreElementRepositoryInterface
 {
-    /**
-     * @var string
-     */
-    protected $entityName;
 
-    /**
-     * @var PimcoreElementManager
-     */
+    /** @var PimcoreElementManager */
     protected $em;
 
-    /**
-     * @var ClassMetadataInterface
-     */
+    /** @var ElementMetadataInterface */
     protected $class;
-
+    /** @var string */
+    private $entityName;
+    /** @var bool */
+    private $omitCatalogs = true;
     /**
      * Initializes a new <tt>EntityRepository</tt>.
      *
-     * @param PimcoreElementManager  $em The EntityManager to use.
-     * @param ClassMetadataInterface $class The class descriptor.
+     * @param PimcoreElementManager    $em The EntityManager to use.
+     * @param ElementMetadataInterface $class The class descriptor.
      */
-    public function __construct(PimcoreElementManager $em, ClassMetadataInterface $class)
+    public function __construct(PimcoreElementManager $em, ElementMetadataInterface $class)
     {
         $this->entityName = $class->name;
         $this->em         = $em;
@@ -97,6 +92,9 @@ class PimcoreEntityRepository implements PimcoreEntityRepositoryInterface
     public function findBy(array $criteria, array $orderBy = null, $limit = null, $offset = null)
     {
         $persister = $this->em->getUnitOfWork()->getEntityPersister($this->entityName);
+        if ($this->omitCatalogs) {
+            $criteria[] = ['condition' => 'type <> ?', 'variable' => 'folder'];
+        }
         $objects = $persister->loadAll($criteria, $orderBy, $limit, $offset);
         foreach ($objects as $object) {
             $this->getEntityManager()
@@ -118,6 +116,9 @@ class PimcoreEntityRepository implements PimcoreEntityRepositoryInterface
         $persister = $this->em
             ->getUnitOfWork()
             ->getEntityPersister($this->entityName);
+        if ($this->omitCatalogs) {
+            $criteria[] = ['condition' => 'type <> ?', 'variable' => 'folder'];
+        }
         $object = $persister->load($criteria, 1, $orderBy);
         if ($object !== null) {
             $this->getEntityManager()
@@ -140,7 +141,7 @@ class PimcoreEntityRepository implements PimcoreEntityRepositoryInterface
      * Selects all elements from a selectable that match the expression and
      * returns a new collection containing these elements.
      *
-     * @param Criteria $criteria
+     * @param \Bolka\RepositoryBundle\Common\Collections\Criteria $criteria
      *
      * @psalm-return Collection<TKey,T>
      * @return LazyCriteriaCollection
@@ -183,5 +184,13 @@ class PimcoreEntityRepository implements PimcoreEntityRepositoryInterface
     protected function getClassMetadata()
     {
         return $this->class;
+    }
+
+    /**
+     * @param bool $omit
+     */
+    public function setOmitCatalogs(bool $omit)
+    {
+        $this->omitCatalogs = $omit;
     }
 }

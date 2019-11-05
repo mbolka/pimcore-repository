@@ -11,7 +11,7 @@ namespace Bolka\RepositoryBundle\ORM\Mapping;
  * Interface ClassMetadataFactory
  * @package Bolka\RepositoryBundle\Common\Persistence\Mapping
  */
-interface ClassMetadataFactoryInterface
+interface PimcoreElementMetadataFactoryInterface
 {
     /**
      * Forces the factory to load the metadata of all classes known to the underlying

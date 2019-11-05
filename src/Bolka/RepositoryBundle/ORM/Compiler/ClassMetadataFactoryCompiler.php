@@ -6,6 +6,7 @@
  */
 namespace Bolka\RepositoryBundle\ORM\Compiler;
 
+use Bolka\RepositoryBundle\ORM\Mapping\PimcoreElementMetadataFactory;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
@@ -22,7 +23,7 @@ class ClassMetadataFactoryCompiler implements CompilerPassInterface
     public function process(ContainerBuilder $container)
     {
         $contextDefinition  = $container->findDefinition(
-            'Bolka\RepositoryBundle\ORM\Mapping\PimcoreClassMetadataFactory'
+            PimcoreElementMetadataFactory::class
         );
         $strategyServiceIds = array_keys(
             $container->findTaggedServiceIds('pimcore.repository')

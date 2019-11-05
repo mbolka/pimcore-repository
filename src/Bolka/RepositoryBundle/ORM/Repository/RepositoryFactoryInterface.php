@@ -7,7 +7,7 @@
 
 namespace Bolka\RepositoryBundle\ORM\Repository;
 
-use Bolka\RepositoryBundle\ORM\PimcoreEntityManagerInterface;
+use Bolka\RepositoryBundle\ORM\PimcoreElementManagerInterface;
 
 /**
  * Interface RepositoryFactoryInterface
@@ -16,9 +16,9 @@ use Bolka\RepositoryBundle\ORM\PimcoreEntityManagerInterface;
 interface RepositoryFactoryInterface
 {
     /**
-     * @param PimcoreEntityManagerInterface $entityManager
-     * @param string                        $pimcoreClass
+     * @param PimcoreElementManagerInterface $entityManager
+     * @param string                         $pimcoreClass
      * @return mixed
      */
-    public function getRepository(PimcoreEntityManagerInterface $entityManager, string $pimcoreClass);
+    public function getRepository(PimcoreElementManagerInterface $entityManager, string $pimcoreClass);
 }

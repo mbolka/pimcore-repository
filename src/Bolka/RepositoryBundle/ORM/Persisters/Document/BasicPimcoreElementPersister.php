@@ -5,12 +5,12 @@
  * @author      Michał Bolka <michal.bolka@gmail.com>
  */
 
-namespace Bolka\RepositoryBundle\ORM\Persisters\Entity;
+namespace Bolka\RepositoryBundle\ORM\Persisters\Document;
 
 use Bolka\RepositoryBundle\Common\Collections\Criteria;
+use Bolka\RepositoryBundle\ORM\Mapping\ElementMetadataInterface;
 use Doctrine\Common\Collections\Expr\Comparison;
 use Doctrine\DBAL\DBALException;
-use Doctrine\ORM\ORMException;
 use Doctrine\ORM\Persisters\SqlValueVisitor;
 use Exception;
 use Pimcore\Db\Connection;
@@ -18,17 +18,16 @@ use Pimcore\Model\DataObject\AbstractObject;
 use Pimcore\Model\DataObject\Concrete;
 use Pimcore\Model\DataObject\Listing;
 use Pimcore\Model\DataObject\Service;
+use Pimcore\Model\Element\AbstractElement;
 use Pimcore\Model\FactoryInterface;
-use Pimcore\Model\Listing\AbstractListing;
-use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataInterface;
 use Bolka\RepositoryBundle\ORM\Persisters\SqlExpressionVisitor;
 use Bolka\RepositoryBundle\ORM\PimcoreElementManagerInterface;
 
 /**
- * Class BasicPimcoreEntityPersister
+ * Class BasicPimcoreAbstractElementPersister
  * @package Bolka\RepositoryBundle\ORM\Persisters\Entity
  */
-class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
+class BasicPimcoreElementPersister implements PimcoreAbstractElementPersisterInterface
 {
 
     /**
@@ -53,14 +52,14 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
      */
     private $em;
     /**
-     * @var ClassMetadataInterface
+     * @var ElementMetadataInterface
      */
     private $class;
 
     /**
      * Queued inserts.
      *
-     * @var array
+     * @var AbstractElement[]
      */
     protected $queuedInserts = [];
     /**
@@ -68,22 +67,18 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
      */
     private $modelFactory;
 
-    /** @var AbstractListing */
-    private $listing;
-
     /** @var Connection */
     private $connection;
 
-
     /**
-     * BasicPimcoreEntityPersister constructor.
+     * BasicPimcoreAbstractElementPersister constructor.
      * @param PimcoreElementManagerInterface $em
-     * @param ClassMetadataInterface         $class
+     * @param ElementMetadataInterface       $class
      * @param FactoryInterface               $modelFactory
      */
     public function __construct(
         PimcoreElementManagerInterface $em,
-        ClassMetadataInterface $class,
+        ElementMetadataInterface $class,
         FactoryInterface $modelFactory
     ) {
         $this->em    = $em;
@@ -93,7 +88,7 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
     }
 
     /**
-     * @return ClassMetadataInterface
+     * @return ElementMetadataInterface
      */
     public function getClassMetadata()
     {
@@ -114,13 +109,12 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
      * Adds an entity to the queued insertions.
      * The entity remains queued until {@link executeInserts} is invoked.
      *
-     * @param Concrete $entity The entity to queue for insertion.
-     *
+     * @param AbstractElement $element
      * @return void
      */
-    public function addInsert(Concrete $entity)
+    public function addInsert(AbstractElement $element)
     {
-        $this->queuedInserts[spl_object_hash($entity)] = $entity;
+        $this->queuedInserts[spl_object_hash($element)] = $element;
     }
 
     /**
@@ -137,9 +131,6 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
     {
         $insertedIds = [];
         foreach ($this->queuedInserts as $insert) {
-            if (!$insert->getPublished()) {
-                $insert->setOmitMandatoryCheck(true);
-            }
             $insert->save();
             $insertedIds[] = $insert->getId();
         }
@@ -151,17 +142,14 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
      * Updates a managed entity. The entity is updated according to its current changeset
      * in the running UnitOfWork. If there is no changeset, nothing is updated.
      *
-     * @param Concrete $entity The entity to update.
+     * @param AbstractElement $AbstractElement The AbstractElement to update.
      *
      * @return void
      * @throws Exception
      */
-    public function update(Concrete $entity)
+    public function update(AbstractElement $AbstractElement)
     {
-        if (!$entity->getPublished()) {
-            $entity->setOmitMandatoryCheck(true);
-        }
-        $entity->save();
+        $AbstractElement->save();
     }
 
     /**
@@ -172,14 +160,14 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
      *
      * Subclasses may override this method to customize the semantics of entity deletion.
      *
-     * @param Concrete $entity The entity to delete.
+     * @param AbstractElement $AbstractElement The entity to delete.
      *
      * @return void TRUE if the entity got deleted in the database, FALSE otherwise.
      * @throws Exception
      */
-    public function delete(Concrete $entity)
+    public function delete(AbstractElement $AbstractElement)
     {
-        $entity->delete();
+        $AbstractElement->delete();
     }
 
     /**
@@ -191,6 +179,7 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
      */
     public function count($criteria = [])
     {
+
         $className = $this->getFullQualifiedClassName();
         $listClass = $className . '\\Listing';
         /** @var Listing $list */
@@ -236,11 +225,11 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
     /**
      * Refreshes a managed entity.
      *
-     * @param Concrete $entity The entity to refresh.
+     * @param AbstractElement $entity The entity to refresh.
      * @return void
      * @throws Exception
      */
-    public function refresh(Concrete $entity)
+    public function refresh(AbstractElement $entity)
     {
         $obj = AbstractObject::getById($entity->getId(), true);
         $vars = $obj->getObjectVars();
@@ -267,7 +256,8 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
             foreach ($criteria as $criterion) {
                 $list->addConditionParam(
                     $criterion['condition'],
-                    array_key_exists('variable', $criterion) ? $criterion['variable'] : null
+                    array_key_exists('variable', $criterion) ? $criterion['variable'] : null,
+                    $criterion['concatenator']
                 );
             }
         }
@@ -290,57 +280,22 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
         return $list->load();
     }
 
-
     /**
-     * Gets the conditional SQL fragment used in the WHERE clause when selecting
-     * entities in this persister.
-     *
-     * Subclasses are supposed to override this method if they intend to change
-     * or alter the criteria by which entities are selected.
-     *
-     * @param array      $criteria
-     * @param array|null $assoc
-     *
-     * @return string
-     * @throws DBALException
-     * @throws ORMException
-     */
-    protected function getSelectConditionSQL(array $criteria)
-    {
-        $conditions = [];
-
-        foreach ($criteria as $field => $value) {
-            $conditions[] = $this->getSelectConditionStatementSQL($field, $value);
-        }
-
-        return implode(' AND ', $conditions);
-    }
-
-    /**
-     * @param Concrete      $entity
-     * @param Criteria|null $extraConditions
+     * @param AbstractElement $entity
      * @return bool
      * @throws DBALException
      */
-    public function exists(Concrete $entity, Criteria $extraConditions = null)
+    public function exists(AbstractElement $entity)
     {
         $criteria = $this->class->getIdentifierValues($entity);
         $params = [];
-        if (! $criteria) {
+        if (!$criteria) {
             return false;
         }
         $params[] = reset($criteria);
         $key = key($criteria);
-        $sql = 'SELECT 1 '
-            . ' FROM ' . $this->class->name
-            . ' WHERE ' . $key . ' =?1';
-
-        if (null !== $extraConditions) {
-            $sql                                 .= ' AND ' . $this->getSelectConditionCriteriaSQL($extraConditions);
-            list($criteriaParams) = $this->expandCriteriaParameters($extraConditions);
-
-            $params = array_merge($params, $criteriaParams);
-        }
+        $table = $this->class->getTableName();
+        $sql = sprintf("SELECT 1 FROM %s WHERE '%s' =?", $table, $key);
 
         return (bool) $this->connection->fetchColumn($sql, $params, 0);
     }
@@ -393,89 +348,6 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
     }
 
     /**
-     * @param      $field
-     * @param      $value
-     * @param null $comparison
-     * @return string
-     * @throws ORMException
-     */
-    public function getSelectConditionStatementSQL($field, $value, $comparison = null)
-    {
-        $selectedColumns = [];
-        $columns         = $this->getSelectConditionStatementColumnSQL($field);
-
-        if (count($columns) > 1 && $comparison === Comparison::IN) {
-            throw ORMException::cantUseInOperatorOnCompositeKeys();
-        }
-
-        foreach ($columns as $column) {
-            $placeholder = '?';
-
-            if (null !== $comparison) {
-                // special case null value handling
-                if (($comparison === Comparison::EQ || $comparison === Comparison::IS) && null ===$value) {
-                    $selectedColumns[] = $column . ' IS NULL';
-
-                    continue;
-                }
-
-                if ($comparison === Comparison::NEQ && null === $value) {
-                    $selectedColumns[] = $column . ' IS NOT NULL';
-
-                    continue;
-                }
-
-                $selectedColumns[] = $column . ' ' . sprintf(static::$comparisonMap[$comparison], $placeholder);
-
-                continue;
-            }
-
-            if (is_array($value)) {
-                $in = sprintf('%s IN (%s)', $column, $placeholder);
-
-                if (false !== array_search(null, $value, true)) {
-                    $selectedColumns[] = sprintf('(%s OR %s IS NULL)', $in, $column);
-
-                    continue;
-                }
-
-                $selectedColumns[] = $in;
-
-                continue;
-            }
-
-            if (null === $value) {
-                $selectedColumns[] = sprintf('%s IS NULL', $column);
-
-                continue;
-            }
-
-            $selectedColumns[] = sprintf('%s = %s', $column, $placeholder);
-        }
-
-        return implode(' AND ', $selectedColumns);
-    }
-
-    /**
-     * Builds the left-hand-side of a where condition statement.
-     *
-     * @param string     $field
-     *
-     * @return string[]
-     *
-     * @throws ORMException
-     */
-    private function getSelectConditionStatementColumnSQL($field)
-    {
-        $fieldDefinition = $this->class->getDefinition()->getFieldDefinition($field);
-        if (null === $fieldDefinition) {
-            throw ORMException::unrecognizedField($field);
-        }
-        return [$field];
-
-    }
-
-    /**
      * Gets the Select Where Condition from a Criteria object.
      *
      * @param Criteria $criteria
@@ -507,7 +379,7 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
             /** @var Concrete $object */
             $object = $this->getListing()->getDao()->getByPath($path);
 
-            return $this->loadById($object->getId());
+            return $this->loadById([$object->getId()]);
         } catch (Exception $e) {
             return null;
         }
@@ -526,12 +398,9 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
      */
     protected function getListing()
     {
-        if (!$this->listing) {
-            $className = $this->getFullQualifiedClassName();
-            $listClass = $className . '\\Listing';
-            $this->listing = $this->modelFactory->build($listClass);
-        }
-        return $this->listing;
+        $className = $this->class->getName();
+        $listClass = $className . '\\Listing';
+        return $this->modelFactory->build($listClass);
     }
 
     /**
@@ -568,18 +437,31 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
                 if (is_array($criterion)) {
                     if (array_key_exists('condition', $criterion)) {
                         if (is_string($criterion['condition'])) {
-                            $normalizedCriterion['condition'] = $criterion['condition'];
-
+                            if (!strpos($criterion['condition'], '?')) {
+                                $normalizedCriterion['condition'] =  '`' . $criterion['condition'] . '` = ?';
+                            } else {
+                                $normalizedCriterion['condition'] = $criterion['condition'];
+                            }
                             if (array_key_exists('variable', $criterion)) {
                                 $normalizedCriterion['variable'] = $criterion['variable'];
                             }
                         }
                     } else {
-                        $normalizedCriterion['condition'] = $criterion;
+                        if (!strpos($criterion['condition'], '?')) {
+                            $normalizedCriterion['condition'] =  '`' . $criterion['condition'] . '` = ?';
+                        } else {
+                            $normalizedCriterion['condition'] = $criterion;
+                        }
+                    }
+                    if (array_key_exists('concatenator', $criterion)) {
+                        $normalizedCriterion['concatenator'] = $criterion['concatenator'];
+                    } else {
+                        $normalizedCriterion['concatenator'] = 'AND';
                     }
                 } else {
-                    $normalizedCriterion['condition'] = $key . ' = ?';
-                    $normalizedCriterion['variable'] = [$criterion];
+                    $normalizedCriterion['condition'] =  '`' . $key . '` = ?';
+                    $normalizedCriterion['variable'] = $criterion;
+                    $normalizedCriterion['concatenator'] = 'AND';
                 }
 
                 if (count($normalizedCriterion) > 0) {

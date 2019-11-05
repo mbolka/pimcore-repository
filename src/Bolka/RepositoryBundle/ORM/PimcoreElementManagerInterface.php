@@ -7,15 +7,15 @@
 
 namespace Bolka\RepositoryBundle\ORM;
 
+use Bolka\RepositoryBundle\ORM\Mapping\ElementMetadataInterface;
 use Doctrine\Common\Persistence\ObjectManager;
 use Pimcore\Db\Connection;
-use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataInterface;
 
 /**
  * Interface PimcoreEntityManagerInterface
  * @package Bolka\RepositoryBundle\ORM
  */
-interface PimcoreEntityManagerInterface extends ObjectManager
+interface PimcoreElementManagerInterface extends ObjectManager
 {
     /**
      * Gets the database connection object used by the EntityManager.
@@ -55,7 +55,7 @@ interface PimcoreEntityManagerInterface extends ObjectManager
      *
      * @param string $className
      *
-     * @return ClassMetadataInterface
+     * @return ElementMetadataInterface
      */
     public function getClassMetadata($className);
 
@@ -69,7 +69,7 @@ interface PimcoreEntityManagerInterface extends ObjectManager
      *
      * @param string $className
      *
-     * @return PimcoreEntityRepositoryInterface
+     * @return PimcoreElementRepositoryInterface
      */
     public function getRepository($className);
 }

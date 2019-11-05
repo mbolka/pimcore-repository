@@ -7,6 +7,7 @@
 
 namespace Bolka\RepositoryBundle\ORM;
 
+use Bolka\RepositoryBundle\ORM\Mapping\ElementMetadataInterface;
 use Doctrine\Common\EventManager;
 use Doctrine\Common\Persistence\ObjectRepository;
 use Doctrine\DBAL\Query\QueryBuilder;
@@ -14,18 +15,19 @@ use Pimcore\Db\Connection;
 use Doctrine\ORM\ORMException;
 use Doctrine\ORM\ORMInvalidArgumentException;
 use Doctrine\ORM\Repository\RepositoryFactory;
+use Pimcore\Model\DataObject\Concrete;
+use Pimcore\Model\Element\AbstractElement;
 use Pimcore\Model\FactoryInterface;
-use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataFactoryInterface;
-use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataInterface;
+use Bolka\RepositoryBundle\ORM\Mapping\PimcoreElementMetadataFactoryInterface;
 use Bolka\RepositoryBundle\ORM\Repository\RepositoryFactoryInterface;
-use Bolka\RepositoryBundle\ORM\Persisters\Entity\EntityPersisterFactory;
+use Bolka\RepositoryBundle\ORM\Persisters\ElementPersisterFactory;
 use Symfony\Component\Intl\Exception\NotImplementedException;
 
 /**
- * Class PimcoreEntityManager
+ * Class PimcoreElementManager
  * @package Bolka\RepositoryBundle\ORM
  */
-class PimcoreEntityManager implements PimcoreEntityManagerInterface
+class PimcoreElementManager implements PimcoreElementManagerInterface
 {
 
     /**
@@ -56,7 +58,7 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
      */
     private $eventManager;
     /**
-     * @var ClassMetadataFactoryInterface
+     * @var PimcoreElementMetadataFactoryInterface
      */
     private $metadataFactory;
     /**
@@ -70,24 +72,24 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
      * Creates a new EntityManager that operates on the given database connection
      * and uses the given Configuration and EventManager implementations.
      *
-     * @param Connection                    $conn
-     * @param EventManager                  $eventManager
-     * @param FactoryInterface              $factory
-     * @param ClassMetadataFactoryInterface $metadataFactory
-     * @param RepositoryFactoryInterface    $repositoryFactory
-     * @param EntityPersisterFactory        $entityPersisterFactory
+     * @param Connection                             $conn
+     * @param EventManager                           $eventManager
+     * @param FactoryInterface                       $factory
+     * @param PimcoreElementMetadataFactoryInterface $metadataFactory
+     * @param RepositoryFactoryInterface             $repositoryFactory
+     * @param ElementPersisterFactory                $entityPersisterFactory
      */
     public function __construct(
         Connection $conn,
         EventManager $eventManager,
         FactoryInterface $factory,
-        ClassMetadataFactoryInterface $metadataFactory,
+        PimcoreElementMetadataFactoryInterface $metadataFactory,
         RepositoryFactoryInterface $repositoryFactory,
-        EntityPersisterFactory $entityPersisterFactory
+        ElementPersisterFactory $entityPersisterFactory
     ) {
         $this->conn                = $conn;
         $this->eventManager        = $eventManager;
-        $this->repositoryClassName = PimcoreEntityRepository::class;
+        $this->repositoryClassName = PimcoreElementRepository::class;
         $this->metadataFactory     = $metadataFactory;
         $this->repositoryFactory   = $repositoryFactory;
         $this->unitOfWork          = new UnitOfWork($this, $factory, $entityPersisterFactory);
@@ -105,16 +107,16 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
      *
      * This is just a convenient shortcut for getRepository($className)->find($id).
      *
-     * @param       $entityName
+     * @param       $entityClass
      * @param mixed $id The identity of the object to find.
      *
      * @return object|null The found object.
      * @throws ORMException
      */
-    public function find($entityName, $id)
+    public function find($entityClass, $id)
     {
         /** @var  $class */
-        $class = $this->metadataFactory->getMetadataFor(ltrim($entityName, '\\'));
+        $class = $this->metadataFactory->getMetadataFor($entityClass);
         $identifier = $class->getIdentifierFieldNames()[0];
         if (!is_array($id)) {
             $id = [$identifier => $id];
@@ -153,8 +155,8 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
      */
     public function persist($entity)
     {
-        if (!is_object($entity)) {
-            throw ORMInvalidArgumentException::invalidObject('EntityManager#persist()', $entity);
+        if (!$entity instanceof AbstractElement || $entity instanceof Concrete) {
+            throw ORMInvalidArgumentException::invalidObject('PimcoreElementManager#persist()', $entity);
         }
 
         $this->errorIfClosed();
@@ -174,7 +176,7 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
      */
     public function remove($entity)
     {
-        if (!is_object($entity)) {
+        if (!$entity instanceof AbstractElement || $entity instanceof Concrete) {
             throw ORMInvalidArgumentException::invalidObject('EntityManager#remove()', $entity);
         }
 
@@ -195,7 +197,7 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
      */
     public function merge($entity)
     {
-        if (!is_object($entity)) {
+        if (!$entity instanceof AbstractElement || $entity instanceof Concrete) {
             throw ORMInvalidArgumentException::invalidObject('EntityManager#merge()', $entity);
         }
 
@@ -241,7 +243,7 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
      */
     public function detach($entity)
     {
-        if (!is_object($entity)) {
+        if (!$entity instanceof AbstractElement || $entity instanceof Concrete) {
             throw ORMInvalidArgumentException::invalidObject('EntityManager#detach()', $entity);
         }
 
@@ -258,7 +260,7 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
      */
     public function refresh($entity)
     {
-        if (!is_object($entity)) {
+        if (!$entity instanceof AbstractElement || $entity instanceof Concrete) {
             throw ORMInvalidArgumentException::invalidObject('EntityManager#refresh()', $entity);
         }
 
@@ -299,7 +301,7 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
      *
      * @param string $className
      *
-     * @return ClassMetadataInterface
+     * @return ElementMetadataInterface
      */
     public function getClassMetadata($className)
     {
@@ -309,7 +311,7 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
     /**
      * Gets the metadata factory used to gather the metadata of classes.
      *
-     * @return ClassMetadataFactoryInterface
+     * @return PimcoreElementMetadataFactoryInterface
      */
     public function getMetadataFactory()
     {
@@ -355,8 +357,8 @@ class PimcoreEntityManager implements PimcoreEntityManagerInterface
     }
 
     /**
-     * Closes the EntityManager. All entities that are currently managed
-     * by this EntityManager become detached. The EntityManager may no longer
+     * Closes the PimcoreElementManager. All entities that are currently managed
+     * by this EntityManager become detached. The PimcoreElementManager may no longer
      * be used after it is closed.
      *
      * @return void
