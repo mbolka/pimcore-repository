@@ -95,7 +95,7 @@ class UnitOfWork
      *
      * @param string $entityName The name of the Entity.
      *
-     * @return PimcoreElem  entPersisterInterface
+     * @return PimcoreElementPersisterInterface
      */
     public function getEntityPersister($entityName)
     {

@@ -22,6 +22,7 @@ use Pimcore\Model\Element\AbstractElement;
 use Pimcore\Model\FactoryInterface;
 use Bolka\RepositoryBundle\ORM\Persisters\SqlExpressionVisitor;
 use Bolka\RepositoryBundle\ORM\PimcoreElementManagerInterface;
+use Pimcore\Model\Listing\AbstractListing;
 
 /**
  * Class BasicPimcoreAbstractElementPersister
@@ -30,9 +31,7 @@ use Bolka\RepositoryBundle\ORM\PimcoreElementManagerInterface;
 class BasicPimcoreElementPersister implements PimcoreAbstractElementPersisterInterface
 {
 
-    /**
-     * @var array
-     */
+    /** @var array */
     protected static $comparisonMap = [
         Comparison::EQ          => '= %s',
         Comparison::NEQ         => '!= %s',
@@ -179,10 +178,9 @@ class BasicPimcoreElementPersister implements PimcoreAbstractElementPersisterInt
      */
     public function count($criteria = [])
     {
-
         $className = $this->getFullQualifiedClassName();
         $listClass = $className . '\\Listing';
-        /** @var Listing $list */
+        /** @var AbstractListing $list */
         $list = $this->modelFactory->build($listClass);
         $list->setValues($criteria);
         $list->setUnpublished($criteria instanceof Criteria ? !$criteria->isHideUnpublished(): false);
@@ -399,8 +397,7 @@ class BasicPimcoreElementPersister implements PimcoreAbstractElementPersisterInt
     protected function getListing()
     {
         $className = $this->class->getName();
-        $listClass = $className . '\\Listing';
-        return $this->modelFactory->build($listClass);
+        return $className::getList();
     }
 
     /**

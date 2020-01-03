@@ -11,6 +11,7 @@ use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataInterface;
 use Bolka\RepositoryBundle\ORM\Mapping\ElementMetadata;
 use Bolka\RepositoryBundle\ORM\Mapping\ElementMetadataInterface;
 use Bolka\RepositoryBundle\ORM\Persisters\Document\BasicPimcoreElementPersister;
+use Bolka\RepositoryBundle\ORM\Persisters\Entity\BasicPimcoreEntityPersister;
 use Bolka\RepositoryBundle\ORM\PimcoreElementManagerInterface;
 use Pimcore\Model\FactoryInterface;
 

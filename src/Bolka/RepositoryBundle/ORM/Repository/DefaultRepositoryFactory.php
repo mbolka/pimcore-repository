@@ -44,7 +44,7 @@ class DefaultRepositoryFactory implements RepositoryFactoryInterface
         } else {
             throw new \RuntimeException(
                 sprintf(
-                    "Pimcore Entity Manager supports only Pimcore Objects, class: %s given",
+                    "Pimcore Entity Manager supports only Pimcore Objects, Assets, Documents, class: %s given",
                     $pimcoreClass
                 )
             );

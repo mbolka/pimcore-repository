@@ -49,7 +49,7 @@ class PimcoreElementMetadataFactory implements PimcoreElementMetadataFactoryInte
      * Gets the class metadata descriptor for a class.
      *
      * @param $pimcoreClass
-     * @return ClassMetadataInterface
+     * @return ElementMetadataInterface
      * @throws \Exception
      */
     public function getMetadataFor($pimcoreClass)
@@ -65,7 +65,7 @@ class PimcoreElementMetadataFactory implements PimcoreElementMetadataFactoryInte
                 $metadata->setCustomRepositoryName($this->customRepositoryClasses[$pimcoreClass]);
             }
             $this->metadataClasses[$pimcoreClass] = $metadata;
-        } elseif ($reflection->isSubclassOf(AbstractElement::class)) {
+        } elseif ($reflection->isSubclassOf(AbstractElement::class) && $reflection->hasMethod('getList')) {
             $tableName = $this->getTableName($reflection);
             $metadata = new ElementMetadata($pimcoreClass, ['id'], $tableName);
             if (array_key_exists($pimcoreClass, $this->customRepositoryClasses)) {
