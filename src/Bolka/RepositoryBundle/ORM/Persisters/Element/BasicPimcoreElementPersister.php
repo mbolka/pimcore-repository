@@ -5,7 +5,7 @@
  * @author      Michał Bolka <michal.bolka@gmail.com>
  */
 
-namespace Bolka\RepositoryBundle\ORM\Persisters\Document;
+namespace Bolka\RepositoryBundle\ORM\Persisters\Element;
 
 use Bolka\RepositoryBundle\Common\Collections\Criteria;
 use Bolka\RepositoryBundle\ORM\Mapping\ElementMetadataInterface;
@@ -178,10 +178,7 @@ class BasicPimcoreElementPersister implements PimcoreAbstractElementPersisterInt
      */
     public function count($criteria = [])
     {
-        $className = $this->getFullQualifiedClassName();
-        $listClass = $className . '\\Listing';
-        /** @var AbstractListing $list */
-        $list = $this->modelFactory->build($listClass);
+        $list = $this->getListing();
         $list->setValues($criteria);
         $list->setUnpublished($criteria instanceof Criteria ? !$criteria->isHideUnpublished(): false);
         return $list->getTotalCount();
@@ -229,7 +226,8 @@ class BasicPimcoreElementPersister implements PimcoreAbstractElementPersisterInt
      */
     public function refresh(AbstractElement $entity)
     {
-        $obj = AbstractObject::getById($entity->getId(), true);
+        /** @var AbstractElement $obj */
+        $obj = AbstractElement::getById($entity->getId(), true);
         $vars = $obj->getObjectVars();
         foreach ($vars as $key => $var) {
             $entity->setObjectVar($key, $var);

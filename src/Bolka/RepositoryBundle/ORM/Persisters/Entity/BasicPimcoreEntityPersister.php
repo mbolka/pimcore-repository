@@ -191,10 +191,7 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersisterInterface
      */
     public function count($criteria = [])
     {
-        $className = $this->getFullQualifiedClassName();
-        $listClass = $className . '\\Listing';
-        /** @var Listing $list */
-        $list = $this->modelFactory->build($listClass);
+        $list = $this->getListing();
         $list->setValues($criteria);
         $list->setUnpublished($criteria instanceof Criteria ? !$criteria->isHideUnpublished(): false);
         return $list->getTotalCount();

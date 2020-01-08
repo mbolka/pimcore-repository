@@ -46,10 +46,10 @@ class SqlExpressionVisitor extends ExpressionVisitor
     private $classMetadata;
 
     /**
-     * @param BasicPimcoreEntityPersister $persister
+     * @param PimcoreElementPersisterInterface $persister
      * @param ClassMetadataInterface      $classMetadata
      */
-    public function __construct(BasicPimcoreEntityPersister $persister, ClassMetadataInterface $classMetadata)
+    public function __construct(PimcoreElementPersisterInterface $persister, ClassMetadataInterface $classMetadata)
     {
         $this->persister = $persister;
         $this->classMetadata = $classMetadata;

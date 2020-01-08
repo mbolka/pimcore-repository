@@ -6,7 +6,7 @@
  * @copyright   Copyright (c) 2019 Divante Ltd. (https://divante.co)
  */
 
-namespace Bolka\RepositoryBundle\ORM\Persisters\Document;
+namespace Bolka\RepositoryBundle\ORM\Persisters\Element;
 
 use Bolka\RepositoryBundle\ORM\Persisters\PimcoreElementPersisterInterface;
 use Pimcore\Model\Element\AbstractElement;

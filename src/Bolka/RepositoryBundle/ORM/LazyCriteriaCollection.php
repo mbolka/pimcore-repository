@@ -63,7 +63,7 @@ class LazyCriteriaCollection extends AbstractLazyCollection implements Selectabl
      * @param PimcoreEntityPersisterInterface $entityPersister
      * @param Criteria                        $criteria
      */
-    public function __construct(PimcoreEntityPersisterInterface $entityPersister, Criteria $criteria, callable $clousure)
+    public function __construct(PimcoreEntityPersisterInterface $entityPersister, Criteria $criteria)
     {
         $this->entityPersister = $entityPersister;
         $this->criteria        = $criteria;
