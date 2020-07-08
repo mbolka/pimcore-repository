@@ -8,6 +8,9 @@
 namespace Bolka\RepositoryBundle\ORM\Persisters\Entity;
 
 use Bolka\RepositoryBundle\Common\Collections\Criteria;
+use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataInterface;
+use Bolka\RepositoryBundle\ORM\Persisters\SqlExpressionVisitor;
+use Bolka\RepositoryBundle\ORM\PimcoreEntityManagerInterface;
 use Doctrine\Common\Collections\Expr\Comparison;
 use Doctrine\DBAL\DBALException;
 use Doctrine\ORM\ORMException;
@@ -19,10 +22,6 @@ use Pimcore\Model\DataObject\Concrete;
 use Pimcore\Model\DataObject\Listing;
 use Pimcore\Model\DataObject\Service;
 use Pimcore\Model\FactoryInterface;
-use Pimcore\Model\Listing\AbstractListing;
-use Bolka\RepositoryBundle\ORM\Mapping\ClassMetadataInterface;
-use Bolka\RepositoryBundle\ORM\Persisters\SqlExpressionVisitor;
-use Bolka\RepositoryBundle\ORM\PimcoreEntityManagerInterface;
 
 /**
  * Class BasicPimcoreEntityPersister
@@ -47,7 +46,23 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
         Comparison::STARTS_WITH => 'LIKE %s',
         Comparison::ENDS_WITH   => 'LIKE %s',
     ];
-
+    protected $allowedKeys = [
+        'o_published',
+        'o_key',
+        'o_id',
+        'o_type',
+        'o_path',
+        'o_modificationDate',
+        'o_creationDate',
+        'o_userOwner',
+        'o_userModification'
+    ];
+    /**
+     * Queued inserts.
+     *
+     * @var array
+     */
+    protected $queuedInserts = [];
     /**
      * @var PimcoreEntityManagerInterface
      */
@@ -56,18 +71,11 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
      * @var ClassMetadataInterface
      */
     private $class;
-
-    /**
-     * Queued inserts.
-     *
-     * @var array
-     */
-    protected $queuedInserts = [];
     /**
      * @var FactoryInterface
      */
     private $modelFactory;
-    
+
     /** @var Connection */
     private $connection;
 
@@ -82,18 +90,10 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
         ClassMetadataInterface $class,
         FactoryInterface $modelFactory
     ) {
-        $this->em    = $em;
-        $this->class = $class;
+        $this->em           = $em;
+        $this->class        = $class;
         $this->modelFactory = $modelFactory;
-        $this->connection = $em->getConnection();
-    }
-
-    /**
-     * @return ClassMetadataInterface
-     */
-    public function getClassMetadata()
-    {
-        return $this->class;
+        $this->connection   = $em->getConnection();
     }
 
     /**
@@ -192,8 +192,104 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
         /** @var Listing $list */
         $list = $this->modelFactory->build($listClass);
         $list->setValues($criteria);
-        $list->setUnpublished($criteria instanceof Criteria ? !$criteria->isHideUnpublished(): false);
+        $list->setUnpublished($criteria instanceof Criteria ? !$criteria->isHideUnpublished() : false);
         return $list->getTotalCount();
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getFullQualifiedClassName()
+    {
+        return $this->getClassMetadata()->fullyQualifiedClassName($this->getClassMetadata()->name);
+    }
+
+    /**
+     * @return ClassMetadataInterface
+     */
+    public function getClassMetadata()
+    {
+        return $this->class;
+    }
+
+    /**
+     * Refreshes a managed entity.
+     *
+     * @param Concrete $entity The entity to refresh.
+     * @return void
+     * @throws Exception
+     */
+    public function refresh(Concrete $entity)
+    {
+        $obj  = AbstractObject::getById($entity->getId(), true);
+        $vars = $obj->getObjectVars();
+        foreach ($vars as $key => $var) {
+            $entity->setObjectVar($key, $var);
+        }
+    }
+
+    /**
+     * @param Concrete      $entity
+     * @param Criteria|null $extraConditions
+     * @return bool
+     * @throws DBALException
+     */
+    public function exists(Concrete $entity)
+    {
+        $criteria = $this->class->getIdentifierValues($entity);
+        $params   = [];
+        if (!$criteria) {
+            return false;
+        }
+        $params[] = reset($criteria);
+        $key      = key($criteria);
+        $sql      = 'SELECT 1 '
+            . ' FROM objects '
+            . ' WHERE ' . $key . ' =?';
+
+        return (bool)$this->connection->fetchColumn($sql, $params, 0);
+    }
+
+    /**
+     * @param string $path
+     * @return mixed
+     */
+    public function getByPath(string $path)
+    {
+        $path = Service::correctPath($path);
+
+        try {
+            /** @var Concrete $object */
+            $object = $this->getListing()->getDao()->getByPath($path);
+
+            return $this->loadById($object->getId());
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * @return mixed
+     */
+    protected function getListing()
+    {
+        $className = $this->getFullQualifiedClassName();
+        $listClass = $className . '\\Listing';
+        return $this->modelFactory->build($listClass);
+    }
+
+    /**
+     * Loads an entity by identifier.
+     *
+     * @param array       $identifier The entity identifier.
+     * @param object|null $entity The entity to load the data into. If not specified, a new entity is created.
+     *
+     * @return object The loaded and managed entity instance or NULL if the entity can not be found.
+     *
+     */
+    public function loadById(array $identifier, $entity = null)
+    {
+        return $this->load($identifier, $entity);
     }
 
     /**
@@ -216,36 +312,6 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
     }
 
     /**
-     * Loads an entity by identifier.
-     *
-     * @param array       $identifier The entity identifier.
-     * @param object|null $entity The entity to load the data into. If not specified, a new entity is created.
-     *
-     * @return object The loaded and managed entity instance or NULL if the entity can not be found.
-     *
-     */
-    public function loadById(array $identifier, $entity = null)
-    {
-        return $this->load($identifier, $entity);
-    }
-
-    /**
-     * Refreshes a managed entity.
-     *
-     * @param Concrete $entity The entity to refresh.
-     * @return void
-     * @throws Exception
-     */
-    public function refresh(Concrete $entity)
-    {
-        $obj = AbstractObject::getById($entity->getId(), true);
-        $vars = $obj->getObjectVars();
-        foreach ($vars as $key => $var) {
-            $entity->setObjectVar($key, $var);
-        }
-    }
-
-    /**
      * Loads a list of entities by a list of field criteria.
      *
      * @param array      $criteria
@@ -257,7 +323,7 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
      */
     public function loadAll(array $criteria = [], array $orderBy = null, $limit = null, $offset = null)
     {
-        $list = $this->getListing();
+        $list     = $this->getListing();
         $criteria = $this->normalizeCriteria($criteria);
         if (is_array($criteria) && count($criteria) > 0) {
             foreach ($criteria as $criterion) {
@@ -281,58 +347,161 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
                 $list->setOrder($orderBy['direction']);
             }
         }
-
+        $list->setObjectTypes(['object']);
         $list->setLimit($limit);
         $list->setOffset($offset);
         return $list->load();
     }
 
-
     /**
-     * Gets the conditional SQL fragment used in the WHERE clause when selecting
-     * entities in this persister.
+     * Normalize critera input.
      *
-     * Subclasses are supposed to override this method if they intend to change
-     * or alter the criteria by which entities are selected.
+     * Input could be
      *
-     * @param array      $criteria
-     * @param array|null $assoc
+     * [
+     *     "condition" => "o_id=?",
+     *     "conditionVariables" => [1]
+     * ]
      *
-     * @return string
-     * @throws DBALException
-     * @throws ORMException
+     * OR
+     *
+     * [
+     *     "condition" => [
+     *          "o_id" => 1
+     *     ]
+     * ]
+     *
+     * @param array $criteria
+     *
+     * @return array
      */
-    protected function getSelectConditionSQL(array $criteria)
+    private function normalizeCriteria($criteria)
     {
-        $conditions = [];
+        $normalized = [
+        ];
 
-        foreach ($criteria as $field => $value) {
-            $conditions[] = $this->getSelectConditionStatementSQL($field, $value);
+        if (is_array($criteria)) {
+            foreach ($criteria as $key => $criterion) {
+                $normalizedCriterion = [];
+
+                if (is_array($criterion)) {
+                    if (array_key_exists('condition', $criterion)) {
+                        if (is_string($criterion['condition'])) {
+                            $normalizedCriterion['condition'] = $criterion['condition'] . ' = ?';
+
+                            if (array_key_exists('variable', $criterion)) {
+                                $normalizedCriterion['variable'] = $criterion['variable'];
+                            }
+                        }
+                    } else {
+                        $normalizedCriterion['condition'] = $criterion . ' = ?';
+                    }
+                    if (array_key_exists('concatenator', $criterion)) {
+                        $normalizedCriterion['concatenator'] = $criterion['concatenator'];
+                    } else {
+                        $normalizedCriterion['concatenator'] = 'AND';
+                    }
+                } else {
+                    $normalizedCriterion['condition']    = $key . ' = ?';
+                    $normalizedCriterion['variable']     = $criterion;
+                    $normalizedCriterion['concatenator'] = 'AND';
+                }
+
+                if (count($normalizedCriterion) > 0) {
+                    $normalized[] = $normalizedCriterion;
+                }
+            }
         }
 
-        return implode(' AND ', $conditions);
+        return $normalized;
     }
 
     /**
-     * @param Concrete      $entity
-     * @param Criteria|null $extraConditions
-     * @return bool
-     * @throws DBALException
+     * Normalizes Order By.
+     *
+     * [
+     *      "key" => "o_id",
+     *      "direction" => "ASC"
+     * ]
+     *
+     * OR
+     *
+     * "o_id ASC"
+     *
+     * @param array|string $orderBy
+     *
+     * @return array
      */
-    public function exists(Concrete $entity)
+    private function normalizeOrderBy($orderBy)
     {
-        $criteria = $this->class->getIdentifierValues($entity);
-        $params = [];
-        if (! $criteria) {
-            return false;
-        }
-        $params[] = reset($criteria);
-        $key = key($criteria);
-        $sql = 'SELECT 1 '
-            . ' FROM objects '
-            . ' WHERE ' . $key . ' =?';
+        $normalized = [
+            'key'       => '',
+            'direction' => 'ASC',
+        ];
 
-        return (bool) $this->connection->fetchColumn($sql, $params, 0);
+        if (is_array($orderBy)) {
+            if (array_key_exists('key', $orderBy)) {
+                $normalized['key'] = $orderBy['key'];
+            }
+
+            if (array_key_exists('direction', $orderBy)) {
+                $normalized['direction'] = $orderBy['direction'];
+            }
+        } elseif (is_string($orderBy)) {
+            $exploded = explode(' ', $orderBy);
+
+            $normalized['key'] = $exploded[0];
+
+            if (count($exploded) > 1) {
+                $normalized['direction'] = $exploded[1];
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function loadCriteria(Criteria $criteria)
+    {
+        $orderBy         = $criteria->getOrderings();
+        $limit           = $criteria->getMaxResults();
+        $offset          = $criteria->getFirstResult();
+        $hideUnpublished = $criteria->isHideUnpublished();
+        $query           = $this->getSelectConditionCriteriaSQL($criteria);
+        list($criteriaParams) = $this->expandCriteriaParameters($criteria);
+        /** @var Listing $objectListing */
+        $objectListing = $this->getListing();
+
+        $objectListing
+            ->setCondition($query, $criteriaParams)
+            ->setLimit($limit)
+            ->setOffset($offset)
+            ->setOrder($orderBy)
+            ->setObjectTypes(['object'])
+            ->setUnpublished(!$hideUnpublished);
+        return $objectListing->load();
+    }
+
+    /**
+     * Gets the Select Where Condition from a Criteria object.
+     *
+     * @param Criteria $criteria
+     *
+     * @return string
+     */
+    protected function getSelectConditionCriteriaSQL(Criteria $criteria)
+    {
+        $expression = $criteria->getWhereExpression();
+
+        if ($expression === null) {
+            return '';
+        }
+
+        $visitor = new SqlExpressionVisitor($this, $this->class);
+
+        return $visitor->dispatch($expression);
     }
 
     /**
@@ -383,6 +552,31 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
     }
 
     /**
+     * Gets the conditional SQL fragment used in the WHERE clause when selecting
+     * entities in this persister.
+     *
+     * Subclasses are supposed to override this method if they intend to change
+     * or alter the criteria by which entities are selected.
+     *
+     * @param array      $criteria
+     * @param array|null $assoc
+     *
+     * @return string
+     * @throws DBALException
+     * @throws ORMException
+     */
+    protected function getSelectConditionSQL(array $criteria)
+    {
+        $conditions = [];
+
+        foreach ($criteria as $field => $value) {
+            $conditions[] = $this->getSelectConditionStatementSQL($field, $value);
+        }
+
+        return implode(' AND ', $conditions);
+    }
+
+    /**
      * @param      $field
      * @param      $value
      * @param null $comparison
@@ -403,7 +597,7 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
 
             if (null !== $comparison) {
                 // special case null value handling
-                if (($comparison === Comparison::EQ || $comparison === Comparison::IS) && null ===$value) {
+                if (($comparison === Comparison::EQ || $comparison === Comparison::IS) && null === $value) {
                     $selectedColumns[] = $column . ' IS NULL';
 
                     continue;
@@ -449,7 +643,7 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
     /**
      * Builds the left-hand-side of a where condition statement.
      *
-     * @param string     $field
+     * @param string $field
      *
      * @return string[]
      *
@@ -458,196 +652,9 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
     private function getSelectConditionStatementColumnSQL($field)
     {
         $fieldDefinition = $this->class->getDefinition()->getFieldDefinition($field);
-        if (null === $fieldDefinition) {
+        if (null === $fieldDefinition&& !in_array($field, $this->allowedKeys)) {
             throw ORMException::unrecognizedField($field);
         }
         return [$field];
-
-    }
-
-    /**
-     * Gets the Select Where Condition from a Criteria object.
-     *
-     * @param Criteria $criteria
-     *
-     * @return string
-     */
-    protected function getSelectConditionCriteriaSQL(Criteria $criteria)
-    {
-        $expression = $criteria->getWhereExpression();
-
-        if ($expression === null) {
-            return '';
-        }
-
-        $visitor = new SqlExpressionVisitor($this, $this->class);
-
-        return $visitor->dispatch($expression);
-    }
-
-    /**
-     * @param string $path
-     * @return mixed
-     */
-    public function getByPath(string $path)
-    {
-        $path = Service::correctPath($path);
-
-        try {
-            /** @var Concrete $object */
-            $object = $this->getListing()->getDao()->getByPath($path);
-
-            return $this->loadById($object->getId());
-        } catch (Exception $e) {
-            return null;
-        }
-    }
-
-    /**
-     * @return string|null
-     */
-    public function getFullQualifiedClassName()
-    {
-        return $this->getClassMetadata()->fullyQualifiedClassName($this->getClassMetadata()->name);
-    }
-
-    /**
-     * @return mixed
-     */
-    protected function getListing()
-    {
-        $className = $this->getFullQualifiedClassName();
-        $listClass = $className . '\\Listing';
-        return $this->modelFactory->build($listClass);
-    }
-
-    /**
-     * Normalize critera input.
-     *
-     * Input could be
-     *
-     * [
-     *     "condition" => "o_id=?",
-     *     "conditionVariables" => [1]
-     * ]
-     *
-     * OR
-     *
-     * [
-     *     "condition" => [
-     *          "o_id" => 1
-     *     ]
-     * ]
-     *
-     * @param array $criteria
-     *
-     * @return array
-     */
-    private function normalizeCriteria($criteria)
-    {
-        $normalized = [
-        ];
-
-        if (is_array($criteria)) {
-            foreach ($criteria as $key => $criterion) {
-                $normalizedCriterion = [];
-
-                if (is_array($criterion)) {
-                    if (array_key_exists('condition', $criterion)) {
-                        if (is_string($criterion['condition'])) {
-                            $normalizedCriterion['condition'] = $criterion['condition'] . ' = ?';
-
-                            if (array_key_exists('variable', $criterion)) {
-                                $normalizedCriterion['variable'] = $criterion['variable'];
-                            }
-                        }
-                    } else {
-                        $normalizedCriterion['condition'] = $criterion . ' = ?';
-
-                    }
-                    if (array_key_exists('concatenator', $criterion)) {
-                        $normalizedCriterion['concatenator'] = $criterion['concatenator'];
-                    } else {
-                        $normalizedCriterion['concatenator'] = 'AND';
-                    }
-                } else {
-                    $normalizedCriterion['condition'] = $key . ' = ?';
-                    $normalizedCriterion['variable'] = $criterion;
-                    $normalizedCriterion['concatenator'] = 'AND';
-                }
-
-                if (count($normalizedCriterion) > 0) {
-                    $normalized[] = $normalizedCriterion;
-                }
-            }
-        }
-
-        return $normalized;
-    }
-
-    /**
-     * Normalizes Order By.
-     *
-     * [
-     *      "key" => "o_id",
-     *      "direction" => "ASC"
-     * ]
-     *
-     * OR
-     *
-     * "o_id ASC"
-     *
-     * @param array|string $orderBy
-     *
-     * @return array
-     */
-    private function normalizeOrderBy($orderBy)
-    {
-        $normalized = [
-            'key' => '',
-            'direction' => 'ASC',
-        ];
-
-        if (is_array($orderBy)) {
-            if (array_key_exists('key', $orderBy)) {
-                $normalized['key'] = $orderBy['key'];
-            }
-
-            if (array_key_exists('direction', $orderBy)) {
-                $normalized['direction'] = $orderBy['direction'];
-            }
-        } elseif (is_string($orderBy)) {
-            $exploded = explode(' ', $orderBy);
-
-            $normalized['key'] = $exploded[0];
-
-            if (count($exploded) > 1) {
-                $normalized['direction'] = $exploded[1];
-            }
-        }
-
-        return $normalized;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function loadCriteria(Criteria $criteria)
-    {
-        $orderBy = $criteria->getOrderings();
-        $limit   = $criteria->getMaxResults();
-        $offset  = $criteria->getFirstResult();
-        $hideUnpublished = $criteria->isHideUnpublished();
-        $query = $this->getSelectConditionCriteriaSQL($criteria);
-        list($criteriaParams) = $this->expandCriteriaParameters($criteria);
-        /** @var Listing $objectListing */
-        $objectListing = $this->getListing();
-        $objectListing
-            ->setCondition($query, $criteriaParams)
-            ->setLimit($limit)
-            ->setOffset($offset)
-            ->setOrder($orderBy)
-            ->setUnpublished(!$hideUnpublished);
-        return $objectListing->load();
     }
 }
