@@ -651,10 +651,6 @@ class BasicPimcoreEntityPersister implements PimcoreEntityPersiterInterface
      */
     private function getSelectConditionStatementColumnSQL($field)
     {
-        $fieldDefinition = $this->class->getDefinition()->getFieldDefinition($field);
-        if (null === $fieldDefinition&& !in_array($field, $this->allowedKeys)) {
-            throw ORMException::unrecognizedField($field);
-        }
         return [$field];
     }
 }
